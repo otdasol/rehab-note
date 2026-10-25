@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rehab노트 개인정보처리방침</title>
+<style>
+  :root { color-scheme: light; --ink: #14201F; --muted: #5B6B6A; --line: #E3EAE9; --primary: #0E7C7B; }
+  body { margin: 0; background: #fff; color: var(--ink); font: 15px/1.7 -apple-system, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 24px; letter-spacing: -0.03em; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 28px 0 8px; color: var(--primary); }
+  p, li { margin: 6px 0; }
+  ul { padding-left: 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
+  th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
+  th { background: #F4F8F8; }
+  .muted { color: var(--muted); font-size: 13.5px; }
+  .todo { background: #FFF4D6; padding: 0 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Rehab노트 개인정보처리방침</h1>
+  <p class="muted">시행일: 2026년 10월 25일</p>
+
+  <p>Rehab노트(이하 "앱")는 작업치료사·물리치료사가 치료 기록을 빠르게 정리하도록 돕는 앱입니다. 앱은 치료 기록을 서버에 저장하지 않고 사용자의 휴대폰 안에만 저장하는 것을 원칙으로 합니다.</p>
+
+  <h2>1. 휴대폰 안에만 저장되는 정보</h2>
+  <p>치료 일정, 환자 표시(A, B 등), 진단명, 메모, 치료 기록, 평가 점수, 목표, 요약, 설정은 사용자의 휴대폰 안에만 저장되며 운영자 서버로 보내지지 않습니다. 앱을 삭제하면 함께 지워집니다.</p>
+  <p>사용자가 직접 만든 백업 파일은 사용자가 정한 비밀번호로 암호화되며, 사용자가 고른 위치(내 파일, 클라우드 등)에만 저장됩니다. 운영자는 이 파일과 비밀번호를 알 수 없습니다.</p>
+  <p>앱은 환자의 이름·등록번호·연락처를 입력받지 않으며, 사용자에게도 입력하지 않도록 안내합니다.</p>
+
+  <h2>2. 운영자 서버가 처리하는 정보</h2>
+  <table>
+    <tr><th>항목</th><th>목적</th><th>보관 기간</th></tr>
+    <tr><td>기기 식별번호(앱이 무작위로 만든 값, 휴대폰 고유번호 아님)</td><td>AI 기능의 하루 사용 횟수 제한</td><td>30일</td></tr>
+    <tr><td>날짜별·기능별 AI 사용 횟수</td><td>사용량 제한, 서비스 운영</td><td>30일</td></tr>
+  </table>
+  <p>서버(Supabase, 서울 리전)는 AI 요청을 AI 회사로 전달만 하며, 요청 내용(기록·메모·음성)을 저장하거나 로그로 남기지 않습니다.</p>
+
+  <h2>3. AI 기능 이용 시 처리 위탁 및 국외 이전</h2>
+  <p>사용자가 AI 기능(기록 정리, SOAP 초안, 치료 아이디어, 기록 점검, 요약, 음성 메모 변환)을 누를 때에만, 그 회기의 일지·메모·음성 메모가 아래 회사로 전송되어 처리됩니다. AI 기능을 처음 쓸 때 동의를 받으며, 동의하지 않아도 AI가 없는 기능은 모두 쓸 수 있습니다.</p>
+  <table>
+    <tr><th>받는 회사</th><th>국가</th><th>처리 내용</th><th>전송 항목</th></tr>
+    <tr><td>Anthropic, PBC</td><td>미국</td><td>글 정리·초안 작성 (Claude)</td><td>사용자가 입력한 일지·메모·기록 글</td></tr>
+    <tr><td>OpenAI, L.L.C.</td><td>미국</td><td>음성 메모를 글로 변환 (Whisper)</td><td>사용자가 남긴 음성 메모 파일</td></tr>
+  </table>
+  <ul>
+    <li>전송 시점·방법: AI 버튼을 누를 때 암호화된 통신(HTTPS)으로 전송</li>
+    <li>보유·이용 기간: 각 회사의 API 데이터 정책에 따라 처리 후 정해진 기간 안에 삭제되며, API로 보낸 내용은 기본적으로 AI 학습에 쓰이지 않습니다.</li>
+    <li>앱은 전송 전에 전화번호·주민등록번호·긴 숫자(등록번호 등)를 자동으로 가립니다.</li>
+    <li>음성 메모 파일은 글로 바뀐 뒤 휴대폰에서 바로 지워집니다.</li>
+  </ul>
+
+  <h2>4. 휴대폰 권한</h2>
+  <ul>
+    <li>마이크: 치료사 본인이 치료 후 남기는 음성 메모 녹음 (처음 쓸 때 묻습니다). 치료 중 대화 녹음 용도로 쓰지 마세요.</li>
+    <li>알림: 기록 초안 완성 알림과 녹음 중 표시</li>
+    <li>생체 인증(지문 등): 앱 잠금 해제. 지문 정보는 휴대폰 밖으로 나가지 않습니다.</li>
+  </ul>
+
+  <h2>5. 사용자의 권리</h2>
+  <ul>
+    <li>앱 설정에서 AI 사용 동의를 언제든 철회할 수 있습니다.</li>
+    <li>휴대폰 안의 기록은 앱을 삭제하거나 앱 데이터를 지워 삭제할 수 있습니다.</li>
+    <li>서버의 사용 횟수 기록은 30일이 지나면 자동으로 지워집니다. 더 일찍 삭제를 원하면 아래 연락처로 요청할 수 있습니다.</li>
+  </ul>
+
+  <h2>6. 안전성 확보 조치</h2>
+  <ul>
+    <li>모든 통신은 HTTPS로 암호화합니다.</li>
+    <li>AI 회사 접속 키는 서버에만 있으며 앱에 들어 있지 않습니다.</li>
+    <li>앱 잠금(PIN·지문)과 암호화 백업을 제공합니다.</li>
+  </ul>
+
+  <h2>7. 개인정보 보호책임자 및 문의</h2>
+  <p>운영자: <span class="todo">[운영자 이름 또는 상호]</span><br>
+     연락처: <span class="todo">[문의 이메일]</span></p>
+
+  <h2>8. 변경</h2>
+  <p>이 방침이 바뀌면 앱과 이 페이지를 통해 시행 7일 전에 알립니다.</p>
+</main>
+</body>
+</html>
