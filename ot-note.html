@@ -308,6 +308,10 @@
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; }
   .field { display: grid; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 700; color: var(--muted); }
   /* 기관판·PC 받기함: 다른 설정과 확실히 구분되는 카드. 글자는 본문 크기 */
+  .fee-list { display: grid; gap: 6px; margin-top: 10px; }
+  .fee-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1.5px solid transparent; font-size: 14.5px; font-weight: 600; }
+  .fee-item.active { border-color: var(--primary); background: var(--primary-soft); }
+  .fee-item .n { width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; display: grid; place-items: center; flex: none; }
   .inst-card { margin: 10px 0 14px; padding: 16px; border-radius: 18px; background: linear-gradient(180deg, #EEF8F7, #FFFFFF 60%); border: 1.5px solid var(--primary); color: var(--ink); font-size: 15px; font-weight: 500; }
   .inst-card .inst-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .inst-card .inst-head .ico { width: 36px; height: 36px; border-radius: 12px; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 18px; flex: none; }
@@ -502,6 +506,14 @@
       <button class="role-card kid-role" data-role="COG"><span class="emo">🧩</span><span><b>인지치료</b><br><span class="muted small">주의 · 기억 · 문제해결</span></span></button>
     </div>
     <p class="muted small" style="margin-top:24px">환자 이름·등록번호는 앱에 저장하지 않아요. 모든 기록은 이 휴대폰 안에만 있어요.</p>
+  </div>
+  <div class="full-body" id="onboardInst" hidden style="padding-top:calc(48px + env(safe-area-inset-top))">
+    <div class="brand" style="font-size:22px"><img class="logo" src="./design/logo.png" alt="" style="width:40px;height:40px;border-radius:12px">AI Rehab노트</div>
+    <h1 style="font-size:26px;letter-spacing:-0.04em;margin:24px 0 6px">기관에 연결하고 시작해요</h1>
+    <p class="muted" style="margin:0 0 14px">AI Rehab노트는 병원·센터와 계약해서 쓰는 앱이에요. 로그인하고 기관에 들어가면 AI 기능이 켜져요.</p>
+    <div class="inst-card" style="margin-top:0"><div id="obInstBox"></div></div>
+    <button class="btn primary block" id="obStart" style="height:52px;font-size:17px" disabled>시작하기</button>
+    <button class="btn ghost block" id="obLater" style="height:40px;margin-top:6px;font-size:14px">나중에 할게요 (설정 맨 위에서 언제든)</button>
   </div>
 </dialog>
 <dialog class="sheet" id="dlgSettings">
@@ -837,7 +849,11 @@ function save() {
 const uid = () => crypto.randomUUID().slice(0, 8);
 const today = () => new Date().toLocaleDateString("sv-SE");
 
-function emptyLog() { return { fees: [], minutes: "", items: [], assist: "", response: [], note: "", acts: [] }; }
+function emptyLog() { return { fees: [], minutes: "", items: [], assist: "", response: [], note: "", acts: [], feeMin: {} }; }
+// 병원판 치료 시간은 수가별로 적는다: 수가를 누르고 시간을 누르면 "그 수가 N분"이 치료 하나로 들어가고, 다음 수가를 누르면 새 치료가 이어진다.
+// l.minutes는 수가별 시간의 합(통계·산정 기준·기존 기록과 호환). 수가가 없으면 예전처럼 시간 하나만 적는다.
+const feeMinOf = (l) => (l.feeMin ||= {});
+function sumFeeMin(l) { const t = Object.values(feeMinOf(l)).reduce((a, v) => a + (Number(v) || 0), 0); if (t) l.minutes = String(t); else if (l.fees.length) l.minutes = ""; }
 function newSlot(time) {
   return { id: uid(), time, pid: null, label: "", dx: "", alias: "", precaution: "", tools: [], transcript: "", log: emptyLog(), rec: null, draft: null, status: "empty" };
 }
@@ -1143,7 +1159,7 @@ function sessionText(s) {
   const pt = patientOf(s);
   const meta = (isCenter()
     ? [`구분: ${s.kind || "정규"}`, pt?.pay ? `결제: ${pt.pay}` : "", l.minutes ? `치료시간: ${l.minutes}분` : ""]
-    : [fees.length ? `수가: ${fees.map(feeLabel).join(", ")}` : "", l.minutes ? `치료시간: ${l.minutes}분` : ""]).filter(Boolean).join(" · ");
+    : [fees.length ? `수가: ${fees.map((f) => `${feeLabel(f)}${feeMinOf(l)[f.id] ? ` ${feeMinOf(l)[f.id]}분` : ""}`).join(", ")}` : "", l.minutes ? `치료시간: ${l.minutes}분${Object.keys(feeMinOf(l)).length > 1 ? " (합계)" : ""}` : ""]).filter(Boolean).join(" · ");
   const body = recordText(s).trim();
   const soap = s.draft && Object.values(s.draft.soap).some((v) => v.trim())
     ? `\n[SOAP]\n${["S", "O", "A", "P"].map((k) => `${k}: ${sectionText(s, k)}`).join("\n")}` : "";
@@ -2096,7 +2112,8 @@ function ensureDraft(s) {
 /** 수가 산정 기준과 맞지 않아 보이는 곳을 알려준다. 판단은 치료사가 한다. */
 function feeWarnings(s) {
   const m = Number(s.log.minutes) || 0; const ids = s.log.fees.filter((id) => (FEES[role()] || []).some((f) => f.id === id));
-  const out = feesOf(s).filter((f) => ids.includes(f.id) && m && m < f.min).map((f) => `${f.name}는 ${f.min}분 이상일 때 산정해요 (지금 ${m}분)`);
+  const fm = feeMinOf(s.log); const minOf = (f) => (fm[f.id] !== undefined ? Number(fm[f.id]) || 0 : Object.keys(fm).length ? 0 : m); // 수가별 시간이 있으면 그것으로 본다
+  const out = feesOf(s).filter((f) => ids.includes(f.id) && f.min && minOf(f) && minOf(f) < f.min).map((f) => `${f.name}는 ${f.min}분 이상일 때 산정해요 (지금 ${minOf(f)}분)`);
   if (m >= 30 && ids.includes("MM112") && !ids.includes("MM113")) out.push("복합작업치료는 30분 미만 기준이에요. 30분 이상이면 특수작업치료(MM113) 기준인지 확인해 주세요");
   if (ids.includes("MM112") && ids.includes("MM113")) out.push("복합·특수작업치료를 함께 골랐어요. 하나만 해당하는지 확인해 주세요");
   // 물리치료: 단순운동치료를 운동치료·재활기능치료와 같은 날 하면 주된 항목만, 온열과 한랭은 한 가지만
@@ -2217,16 +2234,19 @@ function renderSheet() {
     const warns = feeWarnings(s);
     body = `
       ${prev ? `<button class="btn block" data-x="logPrev" style="margin-bottom:10px">${icon("retry", 16)}지난 회기(${esc(prev.day.slice(5))})와 같게 채우기</button>` : ""}
-      ${kindCard(s)}${fees.length ? `<div class="card"><b>수가</b> <span class="muted small">해당하는 것 모두</span>
+      ${kindCard(s)}${fees.length ? `<div class="card"><b>수가</b> <span class="muted small">수가 누르고 → 아래에서 시간 누르면 치료 하나가 들어가요. 다음 수가를 누르면 새 치료가 이어져요.</span>
         ${[...new Set(fees.map((f) => f.group || ""))].map((g) => `${g ? `<p class="muted small" style="margin:10px 0 0;font-weight:700">${esc(g)}</p>` : ""}
           <div class="chips" style="margin-top:8px">${fees.filter((f) => (f.group || "") === g).map((f) => `<button class="chip ${l.fees.includes(f.id) ? "on" : ""}" data-log="fees" data-v="${f.id}">${esc(f.name)}${f.noCode ? "" : ` <span style="opacity:.6;font-weight:600">${f.id}</span>`}</button>`).join("")}</div>`).join("")}
+        ${l.fees.length ? `<div class="fee-list">${l.fees.map((id, n) => { const f = fees.find((x) => x.id === id); const m = feeMinOf(l)[id]; const active = (l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1)) === id;
+            return `<button class="fee-item ${active ? "active" : ""}" data-feesel="${id}"><span class="n">${n + 1}</span><span class="spacer">${esc(f?.name || id)}</span><b>${m ? `${esc(m)}분` : `<span class="muted">시간 ↓</span>`}</b></button>`; }).join("")}
+          ${l.minutes ? `<p class="muted small" style="margin:6px 0 0;text-align:right">합계 ${esc(l.minutes)}분</p>` : ""}</div>` : ""}
         <div class="fee-note ${warns.length ? "warn" : ""}">${warns.length ? `⚠ ${esc(warns[0])}${warns.length > 1 ? ` (외 ${warns.length - 1}건)` : ""}`
           : feesOf(s).length ? esc(feesOf(s).map((f) => `${f.name}: ${f.rule}`).join(" · ")) + (l.minutes ? "" : " · 시간을 넣으면 기준에 맞는지 확인해요")
           : "수가를 고르면 산정 기준이 여기에 보여요"}</div>
       </div>` : ""}
-      <div class="card"><b>치료 시간</b>
-        <div style="margin-top:8px">${chipRow(minutesList().map(String), "minutes", (v) => String(l.minutes) === v, (v) => `${v}분`)}</div>
-        <input data-logf="minutes" inputmode="numeric" value="${esc(l.minutes)}" placeholder="직접 입력 (분)" style="margin-top:8px"></div>
+      <div class="card"><b>치료 시간</b>${l.fees.length && !isCenter() ? ` <span class="muted small">→ <b>${esc(fees.find((x) => x.id === (l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1)))?.name || "")}</b>에 붙어요</span>` : ""}
+        <div style="margin-top:8px">${(() => { const cur = l.fees.length && !isCenter() ? String(feeMinOf(l)[l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1)] || "") : String(l.minutes); return chipRow(minutesList().map(String), "minutes", (v) => cur === v, (v) => `${v}분`); })()}</div>
+        <input data-logf="minutes" inputmode="numeric" value="${esc(l.fees.length && !isCenter() ? feeMinOf(l)[l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1)] || "" : l.minutes)}" placeholder="직접 입력 (분)" style="margin-top:8px"></div>
       ${isCenter() ? actsCard(s) : `<div class="card"><b>오늘 한 치료</b> <span class="muted small">여러 개 고를 수 있어요</span>
         <div style="margin-top:8px">${chipRow(items, "items", (v) => l.items.includes(v))}</div>
         <div class="row" style="margin-top:8px"><input id="customItem" placeholder="목록에 없는 치료"><button class="btn" data-x="addItem">추가</button></div></div>`}
@@ -2242,7 +2262,7 @@ function renderSheet() {
         <div class="hint">${r.hint.map((h) => `<span>${esc(h)}</span>`).join("")}</div>
         <textarea data-f="transcript" rows="3" style="margin-top:10px" placeholder="${esc(r.example)}">${esc(s.transcript)}</textarea>
         <button class="btn ${isRec ? "danger" : ""} block mic-only" style="margin-top:8px" data-x="rec" ${!canRec || isBusy ? "disabled" : ""}>${icon(isRec ? "stop" : "mic", 18)}${isRec ? "말하기 끝" : "말로 남기기"}</button>
-        <p class="muted small" style="margin:8px 0 0">${PERSONAL ? "회기가 끝난 뒤 달라진 점을 짧게 적어 주세요. 이름은 적지 마세요." : `회기가 끝난 뒤 선생님이 정리하며 말해 주세요. ${cloudVoice(s) ? "글로 바꾼 뒤 AI가 아래 치료기록까지 정리해요." : "말은 폰 안에서만 글로 바뀌고, 소리·글은 밖으로 나가지 않아요."} 이름은 말하지 마세요.`}</p></div>
+        <p class="muted small" style="margin:8px 0 0">${PERSONAL ? "회기가 끝난 뒤 달라진 점을 짧게 적어 주세요. 이름은 적지 마세요." : `회기가 끝난 뒤 선생님이 정리하며 말해 주세요. <b>천천히, 또박또박</b> 말하면 약어(min A, ROM 등)도 잘 알아들어요. ${cloudVoice(s) ? "글로 바꾼 뒤 AI가 아래 치료기록까지 정리해요." : "말은 폰 안에서만 글로 바뀌고, 소리·글은 밖으로 나가지 않아요."} 이름은 말하지 마세요.`}</p></div>
       ${isBusy ? `<div class="note-tip info" style="margin:0 0 10px"><span class="spin"></span><span class="spacer">${esc(s.busyText)}</span><b id="busyEl"></b></div>` : ""}
       ${s.lastError ? `<div class="note-tip err" style="margin:0 0 10px"><span class="spacer">⚠ ${esc(s.lastError)}</span>
         ${audioRetry[s.id] ? `<button class="btn" style="height:32px;padding:0 10px;font-size:13px" data-x="retry">${icon("retry", 15)}다시 변환</button>` : ""}</div>` : ""}
@@ -2380,7 +2400,12 @@ $("#sheet").addEventListener("input", (e) => {
   }
   if (t.dataset.exd) { exdOf(ptOf(s), t.dataset.exd)[t.dataset.exk] = t.value.trim(); if (!s.finalized && s.status !== "busy") settle(s); refreshRecordBox(s); save(); }
   if (t.dataset.swalf) { swalOf(s)[t.dataset.swalf] = t.value.trim(); refreshRecordBox(s); save(); }
-  if (t.dataset.logf) { s.log[t.dataset.logf] = t.value; if (!s.finalized && s.status !== "busy") settle(s); refreshRecordBox(s); save(); }
+  if (t.dataset.logf) {
+    const l = s.log;
+    if (t.dataset.logf === "minutes" && l.fees.length && !isCenter()) { const fid = l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1); const fm = feeMinOf(l); if (t.value.trim()) fm[fid] = t.value.trim(); else delete fm[fid]; sumFeeMin(l); }
+    else l[t.dataset.logf] = t.value;
+    if (!s.finalized && s.status !== "busy") settle(s); refreshRecordBox(s); save();
+  }
   if (t.dataset.tn) { s.tools[+t.dataset.tn].note = t.value; if (!s.finalized && s.status !== "busy") settle(s); save(); }
   if (t.dataset.i) { s.tools[+t.dataset.i].score = t.value; recalc(s); paintCalc(s); if (!s.finalized && s.status !== "busy") settle(s); save(); }
   if (t.dataset.tnorm) { s.tools[+t.dataset.tnorm].norm = t.value.replace(/[^0-9.]/g, ""); recalc(s); paintCalc(s); save(); }
@@ -2481,10 +2506,17 @@ $("#sheet").addEventListener("click", (e) => {
     if (p) p.side = v; else s.side = v;
     recalc(s); save(); renderSheet(); return;
   }
+  if (b.dataset.feesel) { s.feeActive = b.dataset.feesel; save(); renderSheet(); return; }
   if (b.dataset.log) { // 시간·보조 수준은 하나만, 수가·중재·반응은 여러 개
     const l = s.log; const k = b.dataset.log; const v = b.dataset.v;
-    if (k === "minutes" || k === "assist") l[k] = String(l[k]) === v ? "" : v;
-    else l[k] = l[k].includes(v) ? l[k].filter((x) => x !== v) : [...l[k], v];
+    if (k === "minutes" && l.fees.length && !isCenter()) { // 활성 수가(마지막에 누른 수가)에 시간을 붙인다
+      const fid = l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1); const fm = feeMinOf(l);
+      fm[fid] = String(fm[fid]) === v ? "" : v; if (!fm[fid]) delete fm[fid]; sumFeeMin(l);
+    } else if (k === "minutes" || k === "assist") l[k] = String(l[k]) === v ? "" : v;
+    else if (k === "fees") {
+      if (l.fees.includes(v)) { l.fees = l.fees.filter((x) => x !== v); delete feeMinOf(l)[v]; s.feeActive = l.fees.at(-1) || ""; sumFeeMin(l); }
+      else { l.fees = [...l.fees, v]; s.feeActive = v; }
+    } else l[k] = l[k].includes(v) ? l[k].filter((x) => x !== v) : [...l[k], v];
     if (!s.finalized && s.status !== "busy") settle(s);
     save(); renderSheet(); renderSummary(); return;
   }
@@ -3406,7 +3438,8 @@ function rpVoiceBox(p, t, on) {
     <p class="muted small" style="margin:6px 0 12px">평가 점수·보조 수준·목표만 있어도 소견·문제점·목표·계획을 채워요. 이미 쓴 문장은 그대로 두고 더할 줄만 넣어요.</p>
     <div class="row"><b class="spacer">🎤 말로 한꺼번에 · AI가 칸별로 정리</b>
       <button class="btn ${on ? "danger" : "primary"}" data-c="rpDictMic" style="height:36px;padding:0 14px;font-size:13.5px;flex:none">${icon(on ? "stop" : "mic", 16)}${on ? "말하기 끝" : "말하기"}</button></div>
-    ${on ? `<div class="small muted" id="rpPartial" style="margin-top:4px">듣고 있어요… 주호소부터 계획까지 편하게 말해 주세요</div>` : ""}
+    ${on ? `<div class="small muted" id="rpPartial" style="margin-top:4px">듣고 있어요… 주호소부터 계획까지 <b>천천히, 또박또박</b> 말해 주세요</div>`
+      : `<p class="muted small" style="margin:4px 0 0">조용한 곳에서 <b>천천히, 또박또박</b> 말해 주세요. 숫자·약어는 한 번 더 또렷하게요.</p>`}
     ${rpRec?.busy && rpRec.pid === p.id ? `<div class="small muted" style="margin-top:4px"><span class="spin"></span>말한 내용을 글로 바꾸는 중…</div>` : ""}
     <textarea data-rpk="__dict" rows="3" maxlength="6000" style="margin-top:8px" placeholder="예: 숟가락 쥐기가 제일 힘들다고 하심. 식사 min A, 옷 입기 mod A. 2주 안에 식사 SBA 목표. 주 5회 30분, 2주 후 재평가">${esc(said)}</textarea>
     <button class="btn block" data-c="rpSort" style="margin-top:8px" ${rpSortBusy || !said.trim() ? "disabled" : ""}>${rpSortBusy ? `<span class="spin"></span>AI가 칸별로 나누는 중…` : `${icon("spark", 16)}AI로 칸별 정리`}</button>
@@ -3987,7 +4020,11 @@ function paintInst() {
     <p><b>${esc(o.name)}</b> · ${ROLE_KO[o.role] || ""}<br><span class="hint">${esc(s.email)}</span></p>
     <p class="hint">AI ${o.ai_enabled ? (o.ai_basis === "per_patient_consent" ? `<b style="color:var(--ok)">켜짐</b> · 동의 기록이 있는 ${who()}만` : `<b style="color:var(--ok)">켜짐</b> · 기관 고지 기준`) : `<b style="color:var(--warn)">꺼짐</b> · 관리자가 기관 관리에서 켜야 해요`}${lockOn() ? "" : ` · <b style="color:var(--warn)">앱 잠금을 켜 주세요</b>`}</p>
     <div class="row" style="gap:8px">${isInstAdmin() ? `<button class="btn primary" data-inst="admin" style="flex:1.4">기관 관리 (초대·AI)</button>` : ""}<button class="btn" data-inst="leave" style="flex:1;height:48px">이 폰에서 끄기</button></div>`;
-  $("#instBox").innerHTML = h;
+  // 같은 id(instEmail 등)를 두 곳에 두면 $()가 엉키므로, 온보딩 화면이 보일 땐 거기에만, 아니면 설정에만 그린다
+  const onboarding = !$("#onboardInst").hidden;
+  $("#instBox").innerHTML = onboarding ? "" : h;
+  $("#obInstBox").innerHTML = onboarding ? h : "";
+  $("#obStart").disabled = !(o && s); if (onboarding && o && s) $("#obStart").scrollIntoView({ block: "nearest" });
   if (o && s) {
     $("#pcBox").innerHTML = `<div class="inst-head"><div class="ico">🖥️</div><div class="spacer"><b>PC 받기함</b><div class="sub">폰에서 복사한 기록을 병원 PC 화면으로</div></div><span class="pill ${i.pc?.code ? "on" : "wait"}">${i.pc?.code ? "연결됨" : "연결 전"}</span></div>
       ${i.pc?.code ? `<p>코드 <b>${esc(i.pc.code.replace(/(.{4})(?=.)/g, "$1-"))}</b> · ${md(localDay(i.pc.at))}부터</p>
@@ -4041,7 +4078,7 @@ async function instAction(a) {
   }
 }
 let instBusy = false;
-for (const sel of ["#instBox", "#pcBox"]) $(sel).addEventListener("click", async (e) => {
+for (const sel of ["#instBox", "#pcBox", "#obInstBox"]) $(sel).addEventListener("click", async (e) => {
   const b = e.target.closest("button"); if (!b || instBusy) return;
   if (b.dataset.kind) { $("#instKind").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); return; }
   const a = b.dataset.inst; if (!a) return;
@@ -4784,9 +4821,21 @@ $("#onboard").addEventListener("click", (e) => {
   regridUntouchedDays();
   db.settings.joinedAt = db.settings.joinedAt || today();
   save();
+  if (!PERSONAL && !instOrg()) { showOnboardInst(); renderAll(); return; }
   $("#onboard").close(); renderAll();
   toast(`${ROLE[role()].name} 모드로 시작해요`);
 });
+/** 병원판 첫 화면: 기관 로그인·합류를 먼저. 기관이 생기면 "시작하기"가 켜진다 */
+function showOnboardInst() {
+  $("#onboard").querySelector(".full-body:not(#onboardInst)").hidden = true; $("#onboardInst").hidden = false;
+  paintInst(); if (!$("#onboard").open) $("#onboard").showModal();
+}
+function endOnboardInst() {
+  $("#onboardInst").hidden = true; $("#onboard").querySelector(".full-body:not(#onboardInst)").hidden = false;
+  if ($("#onboard").open) $("#onboard").close(); paintInst(); renderAll();
+}
+$("#obStart").onclick = () => { endOnboardInst(); toast(`${instOrg()?.name || ""} · ${ROLE[role()].name} 모드로 시작해요`); };
+$("#obLater").onclick = () => { db.settings.instSkipDay = today(); save(); endOnboardInst(); toast("설정 맨 위 '기관판'에서 언제든 연결할 수 있어요"); };
 
 // 휴대폰의 뒤로가기: 앱을 바로 끄지 않고 한 단계씩 앞 화면으로 돌아간다.
 // 열린 창 → 세션의 첫 탭 → 세션 닫기 → 오늘 탭 → "한 번 더 누르면 종료" 순서. 앱이 끝내도 될 때만 "exit"를 돌려준다.
@@ -4824,6 +4873,7 @@ function leaveSplash() {
   if ($("#splash").hidden) return;
   $("#splash").hidden = true;
   if (!db.settings.role) { $("#onboard").showModal(); return; }
+  if (!PERSONAL && !instOrg() && db.settings.instSkipDay !== today()) { showOnboardInst(); return; }
   if (lockOn()) showLock("unlock");
   // 기록이 쌓였는데 2주 넘게 백업하지 않았으면 하루 한 번 알려 준다
   const finals = Object.values(db.days).reduce((n, d) => n + d.sessions.filter((s) => s.finalized).length, 0);
