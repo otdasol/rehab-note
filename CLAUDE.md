@@ -39,12 +39,16 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 
 - **아이폰 → 웹판**: `main`에 푸시하면 `.github/workflows/pages.yml`이 `https://otdasol.github.io/rehab-note/`에 **병원판만** 올린다 (EDITION을 hospital로 고정한 `index.html`, 선택 화면 없음). 올라가는 것: index.html + `privacy.html` + `design/` 그림 4개 + `icon.png`에서 만든 `icon-180.png`. 개인판·`android/`·`server/`는 올리지 않는다.
 - 카톡 안 브라우저에는 "홈 화면에 추가"가 없다. 아이폰은 카톡 링크 → 오른쪽 아래 메뉴 → **Safari로 열기** → 공유 → 홈 화면에 추가.
-- **안드로이드 → 설치형 APK**: 집 PC에서 릴리즈 빌드 후 GitHub Releases에 올려 링크를 보낸다 (카톡은 apk 첨부가 막히거나 바뀔 수 있음):
+- **안드로이드 → 설치형 APK**: `.github/workflows/release-apk.yml`이 GitHub Actions에서 서명해 Releases에 올린다. 서명 키는 저장소 Secrets(`KEYSTORE_BASE64`·`KEYSTORE_PASSWORD`·`KEY_ALIAS`·`KEY_PASSWORD`)에 있다 — 2026-10-26 Claude 세션에서 만든 키, 사용자가 jks·비밀번호를 따로 보관.
 
 ```powershell
-gh release create v0.22 android\app\build\outputs\apk\hospital\release\app-hospital-release.apk --title "AI Rehab노트 0.22 테스트" --notes "테스트판. 실제 환자 정보는 넣지 마세요."
+# 1) build.gradle.kts의 versionCode/versionName 올리기  2) 같은 번호로 태그
+git tag v0.23; git push origin v0.23
 # 받는 링크: https://github.com/otdasol/rehab-note/releases/latest  → 폰 브라우저로 열어 apk 내려받기 → "출처를 알 수 없는 앱" 허용 → 설치
+# 태그 없이 시험 빌드만: Actions › release-apk › Run workflow (Artifacts에 14일 보관). 개인판도 올리려면 personal 체크.
 ```
+
+- 태그 번호와 versionName이 다르면 워크플로가 멈춘다(의도). 카톡 apk 첨부는 막힐 수 있으니 Releases 링크로 보낸다.
 
 - 테스터는 앱 안에서 가입(이메일) → 메일 확인 → 로그인 → **초대 코드 10자리** 입력해야 기관에 들어간다. 초대 코드는 관리자(교수)가 설정 › 기관판 › 관리자에서 만든다. 코드 하나 = 한 사람, 7일.
 - iOS 앱(TestFlight·App Store)은 사업화 단계에서 한다.

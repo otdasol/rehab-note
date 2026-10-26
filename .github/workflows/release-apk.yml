@@ -1,0 +1,105 @@
+# 병원판(AI Rehab노트) 릴리즈 APK를 GitHub Actions에서 서명해 Releases에 올린다.
+# 쓰는 법: build.gradle.kts의 versionCode/versionName을 올리고 → 같은 번호로 태그를 민다.
+#   git tag v0.23 && git push origin v0.23
+# 받는 링크: https://github.com/otdasol/rehab-note/releases/latest
+# 서명 키는 저장소 Secrets 4개에서 온다: KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
+# 비밀값은 파일로만 쓰고 로그에 찍지 않는다 (echo 금지).
+name: release-apk
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      personal:
+        description: "개인판(Rehab노트) APK도 같이 올리기"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: 서명 키 풀기
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "::error::KEYSTORE_BASE64 secret이 없다. 저장소 Settings › Secrets에 4개를 넣어야 한다."; exit 1; fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/keystore.properties
+          echo "keystore ready ($(stat -c %s android/release.jks) bytes)"
+
+      - name: 버전 읽기
+        id: ver
+        run: |
+          name=$(grep -oP 'versionName = "\K[^"]+' android/app/build.gradle.kts)
+          code=$(grep -oP 'versionCode = \K[0-9]+' android/app/build.gradle.kts)
+          echo "name=$name" >> "$GITHUB_OUTPUT"; echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "versionName=$name versionCode=$code tag=${GITHUB_REF_NAME}"
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$name" ]]; then
+            echo "::error::태그($GITHUB_REF_NAME)와 build.gradle.kts의 versionName($name)이 다르다. versionName을 먼저 올리고 같은 번호로 태그를 밀 것."; exit 1
+          fi
+
+      - name: APK 빌드
+        run: |
+          set -e
+          tasks="assembleHospitalRelease"
+          if [ "${{ inputs.personal }}" = "true" ]; then tasks="$tasks assemblePersonalRelease"; fi
+          gradle -p android $tasks --no-daemon
+          mkdir -p out
+          cp android/app/build/outputs/apk/hospital/release/app-hospital-release.apk "out/ai-rehabnote-${{ steps.ver.outputs.name }}.apk"
+          if [ "${{ inputs.personal }}" = "true" ]; then cp android/app/build/outputs/apk/personal/release/app-personal-release.apk "out/rehabnote-${{ steps.ver.outputs.name }}.apk"; fi
+          ls -la out
+
+      - name: 서명 확인
+        run: |
+          set -e
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for f in out/*.apk; do "$apksigner" verify --print-certs "$f" | grep -E "Signer #1 certificate SHA-256|Verifies"; done
+
+      - name: 키 지우기
+        if: always()
+        run: rm -f android/release.jks android/keystore.properties
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ steps.ver.outputs.name }}
+          path: out/*.apk
+          retention-days: 14
+
+      - name: Releases에 올리기 (태그일 때만)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          tag="${GITHUB_REF_NAME}"
+          notes=$'AI Rehab노트 테스트판 '"${{ steps.ver.outputs.name }}"$'\n\n안드로이드: 아래 apk를 폰 브라우저로 내려받아 설치하세요 (\"출처를 알 수 없는 앱\" 허용).\n아이폰: https://otdasol.github.io/rehab-note/ 를 Safari로 열고 공유 → 홈 화면에 추가.\n\n테스트판입니다. 실제 환자 정보는 넣지 마세요.'
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" out/*.apk --clobber
+          else
+            gh release create "$tag" out/*.apk --title "AI Rehab노트 ${{ steps.ver.outputs.name }} 테스트" --notes "$notes"
+          fi
