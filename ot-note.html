@@ -3839,7 +3839,7 @@ const ACTION_KO = { "org.create": "기관 만들기", "org.settings": "기관 �
   "member.remove": "구성원 해지", "device.register": "기기 등록", "consent.grant": "동의 기록", "consent.withdraw": "동의 철회",
   "patient.discharge": "퇴원 처리", "patient.readmit": "재입원 처리", "ai.use": "AI 사용", "report.create": "보고서 생성", "followup.schedule": "추적 예약" };
 const AI_KIND_KO = { soap: "SOAP", record: "치료기록", stt: "음성 메모", ideas: "아이디어·슈퍼비전", summary: "차트·안내문", review: "실습생 점검", report: "월간 보고서" };
-let adminData = null, adminInvite = null, adminRole = "therapist";
+let adminData = null, adminInvite = null, adminRole = "therapist", adminMulti = false; // adminMulti: 코드 하나로 여러 명(최대 20명·30일)
 function logDetail(x) {
   const d = x.detail || {}; const parts = [];
   if (d.scope) parts.push({ ai_processing: "AI 처리", report_messaging: "보고서", followup_contact: "퇴원 후 연락" }[d.scope] || d.scope);
@@ -3848,6 +3848,7 @@ function logDetail(x) {
   if (d.ai_basis) parts.push(d.ai_basis === "notice" ? "근거: 기관 고지" : "근거: 환자별 동의");
   if (d.role) parts.push(ROLE_KO[d.role] || d.role);
   if (x.action === "invite.create" && x.target_id) parts.push(ROLE_KO[x.target_id] || x.target_id);
+  if (x.action === "invite.create" && d.max_uses > 1) parts.push(`${d.max_uses}명 · ${d.days}일`);
   if (x.target_type === "patient_ref" && x.target_id) parts.push(`환자 #${x.target_id.slice(0, 4)}`);
   return parts.length ? ` <span class="muted">(${esc(parts.join(" · "))})</span>` : "";
 }
@@ -3874,9 +3875,11 @@ function renderAdmin() {
   $("#dlgAdmin").innerHTML = `<div class="full-head"><div class="wrap row"><button class="icon-btn" data-a="close" aria-label="뒤로">${icon("back")}</button>
       <div class="spacer" style="text-align:center"><b>${esc(o.name)} 관리</b></div><span style="width:40px"></span></div></div>
     <div class="full-body">
-      <div class="card"><b>초대 코드</b> <span class="muted small">7일 안에 한 사람이 한 번 써요</span>
+      <div class="card"><b>초대 코드</b> <span class="muted small">${adminRole === "therapist" && adminMulti ? "30일 안에 최대 20명이 써요" : "7일 안에 한 사람이 한 번 써요"}</span>
         <div class="seg" style="margin:10px 0 8px">${[["therapist", "치료사"], ["admin", "관리자"]].map(([k, v]) => `<button class="${adminRole === k ? "on" : ""}" data-arole="${k}">${v}</button>`).join("")}</div>
-        ${adminInvite ? `<div class="inv-code">${esc(adminInvite.code)}</div><p class="muted small" style="text-align:center;margin:0 0 8px">${ROLE_KO[adminInvite.role]} 초대 · 받는 사람이 설정 › 기관판에 넣어요</p>
+        ${adminRole === "therapist" ? `<div class="seg" style="margin:0 0 8px">${[[false, "1명 · 7일"], [true, "여러 명 · 30일"]].map(([k, v]) => `<button class="${adminMulti === k ? "on" : ""}" data-amulti="${k ? 1 : 0}">${v}</button>`).join("")}</div>
+        ${adminMulti ? `<p class="muted small" style="margin:0 0 8px">코드 하나를 최대 20명이 쓸 수 있어요. 단체방에 뿌릴 때 써요. 관리자 초대는 늘 1명용이에요.</p>` : ""}` : ""}
+        ${adminInvite ? `<div class="inv-code">${esc(adminInvite.code)}</div><p class="muted small" style="text-align:center;margin:0 0 8px">${ROLE_KO[adminInvite.role]} 초대${adminInvite.multi ? " · 최대 20명 · 30일" : ""} · 받는 사람이 설정 › 기관판에 넣어요</p>
           <button class="btn block" data-a="copyInvite">${icon("copy", 16)}코드 복사</button>` : ""}
         <button class="btn ${adminInvite ? "" : "primary"} block" data-a="invite" style="margin-top:8px">새 코드 만들기</button>
       </div>
@@ -3903,6 +3906,7 @@ $("#dlgAdmin").addEventListener("click", async (e) => {
   const b = e.target.closest("button"); const o = instOrg(); if (!b || !o) return;
   if (b.dataset.a === "close") { $("#dlgAdmin").close(); return; }
   if (b.dataset.arole) { adminRole = b.dataset.arole; adminInvite = null; renderAdmin(); return; }
+  if (b.dataset.amulti !== undefined) { adminMulti = b.dataset.amulti === "1"; adminInvite = null; renderAdmin(); return; }
   if (b.dataset.a === "copyInvite") { copy(adminInvite.code, "초대 코드를 복사했어요"); return; }
   if (b.dataset.basis === "notice" && o.ai_basis !== "notice" && !b.dataset.confirm) {
     b.dataset.confirm = "1"; b.textContent = "정말 바꾸기"; toast("기관 고지만으로 AI를 쓰려면 법적 근거가 먼저 필요해요. 한 번 더 누르면 바뀌어요."); return;
@@ -3910,7 +3914,10 @@ $("#dlgAdmin").addEventListener("click", async (e) => {
   if (b.dataset.remove && !b.dataset.confirm) { b.dataset.confirm = "1"; b.textContent = "정말 해지"; toast("한 번 더 누르면 해지돼요. 그 사람의 폰에서 기관 기록이 지워져요."); return; }
   if (b.disabled) return; b.disabled = true;
   try {
-    if (b.dataset.a === "invite") { adminInvite = { code: await rpc("create_invite", { p_org: o.id, p_role: adminRole }), role: adminRole }; await loadAdmin(); }
+    if (b.dataset.a === "invite") {
+      const multi = adminRole === "therapist" && adminMulti;
+      adminInvite = { code: await rpc("create_invite", { p_org: o.id, p_role: adminRole, p_max_uses: multi ? 20 : 1, p_days: multi ? 30 : 7 }), role: adminRole, multi }; await loadAdmin();
+    }
     if (b.dataset.aion || b.dataset.basis) {
       const patch = b.dataset.aion ? { ai_enabled: b.dataset.aion === "on" } : { ai_basis: b.dataset.basis };
       if (!Object.entries(patch).every(([k, v]) => o[k] === v)) {

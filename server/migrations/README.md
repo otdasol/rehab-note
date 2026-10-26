@@ -21,3 +21,5 @@ select version, name, statements from supabase_migrations.schema_migrations orde
 | 20261025122529 | audit_log_event_internal_only | `log_event`를 사용자가 직접 못 부르게 |
 
 새 마이그레이션을 적용하면 이 표에도 한 줄 추가한다.
+| 20261026 | invite_multi_use | `invites.max_uses`(1~50)·`use_count`. `create_invite(p_org, p_role, p_max_uses=1, p_days=7)`: 관리자 초대는 1명만. `accept_invite`는 횟수 안에서 여러 명 허용, 이미 활동 중인 구성원은 횟수 안 깎음. 앱의 "여러 명 · 30일"은 20명·30일 |
+| 20261026 | invite_drop_old_signature | 옛 `create_invite(uuid, member_role)` 삭제 (rpc 모호성 방지) |
