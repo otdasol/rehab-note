@@ -307,6 +307,21 @@
   .seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; }
   .field { display: grid; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 700; color: var(--muted); }
+  /* 기관판·PC 받기함: 다른 설정과 확실히 구분되는 카드. 글자는 본문 크기 */
+  .inst-card { margin: 10px 0 14px; padding: 16px; border-radius: 18px; background: linear-gradient(180deg, #EEF8F7, #FFFFFF 60%); border: 1.5px solid var(--primary); color: var(--ink); font-size: 15px; font-weight: 500; }
+  .inst-card .inst-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .inst-card .inst-head .ico { width: 36px; height: 36px; border-radius: 12px; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 18px; flex: none; }
+  .inst-card .inst-head b { font-size: 17px; letter-spacing: -0.02em; }
+  .inst-card .inst-head .sub { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .inst-card .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+  .inst-card .pill.on { background: var(--ok-soft); color: var(--ok); } .inst-card .pill.off { background: var(--warn-soft); color: var(--warn); } .inst-card .pill.wait { background: var(--surface-2); color: var(--muted); }
+  .inst-card input { font-size: 16px; height: 48px; }
+  .inst-card .steps { display: flex; gap: 6px; margin: 2px 0 12px; }
+  .inst-card .steps span { flex: 1; text-align: center; font-size: 12px; font-weight: 700; padding: 6px 4px; border-radius: 10px; background: var(--surface-2); color: var(--muted); }
+  .inst-card .steps span.done { background: var(--ok-soft); color: var(--ok); } .inst-card .steps span.now { background: var(--primary); color: #fff; }
+  .inst-card p { margin: 0 0 10px; line-height: 1.5; } .inst-card p.hint { font-size: 13.5px; color: var(--ink-2); }
+  .inst-card .btn.primary { height: 48px; font-size: 16px; }
+  .inst-card details summary { font-size: 14px; font-weight: 700; color: var(--primary); cursor: pointer; }
   .cat-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin: 4px -18px 10px; padding-left: 18px; padding-right: 18px; scrollbar-width: none; }
   .cart-line { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px; }
   .cart-line input { width: 96px; text-align: right; font-weight: 800; padding: 8px 10px; }
@@ -493,6 +508,8 @@
   <div class="grab"></div>
   <div class="sheet-body">
     <h2 style="margin:6px 0 14px;letter-spacing:-0.03em">설정</h2>
+    <div class="inst-card" id="instWrap"><div id="instBox"></div></div>
+    <div class="inst-card" id="pcWrap" hidden><div id="pcBox"></div></div>
     <div class="field">직무
       <div id="setRole">
         <p class="muted small" style="margin:4px 0 6px">병원</p>
@@ -541,9 +558,6 @@
     </div>
     <div class="field" style="margin-top:14px" hidden>실습생 모드
       <div class="row" style="gap:8px;margin-top:6px"><span class="spacer small muted" id="studentInfo"></span><button class="btn" id="btnStudent">켜기</button></div>
-    </div>
-    <div class="field" style="margin-top:14px">기관판 <span class="muted small" style="font-weight:600">병원·센터 계약용</span>
-      <div id="instBox" style="margin-top:6px"></div>
     </div>
     <div class="field" style="margin-top:14px">AI 사용 동의
       <div class="row" style="gap:8px;margin-top:6px"><span class="spacer small muted" id="consentInfo"></span><button class="btn" id="btnConsent">철회</button></div>
@@ -3945,33 +3959,43 @@ async function consentClick(p, b) {
 function paintInst() {
   const i = inst(), o = i?.org, s = i?.session;
   $("#consentInfo").closest(".field").hidden = !o; $("#guideField").hidden = !o; // 기관 미가입이면 AI·안내문이 없다
-  $("#instBox").closest(".field").hidden = PERSONAL; // 개인판에는 기관판 메뉴 자체가 없다
+  $("#instWrap").hidden = PERSONAL; $("#pcWrap").hidden = PERSONAL || !(o && s); // 개인판에는 기관판 메뉴 자체가 없다
+  const step = (n) => `<div class="steps">${["① 가입·로그인", "② 기관 들어가기", "③ 사용 중"].map((t, k) => `<span class="${k + 1 < n ? "done" : k + 1 === n ? "now" : ""}">${t}</span>`).join("")}</div>`;
+  const head = (pill, pillCls) => `<div class="inst-head"><div class="ico">🏥</div><div class="spacer"><b>AI Rehab노트 기관판</b><div class="sub">병원·센터 계약용 · AI 기능은 여기서 켜져요</div></div><span class="pill ${pillCls}">${pill}</span></div>`;
   let h;
-  if (!s) h = `${o ? `<p class="small" style="margin:0 0 8px"><b>${esc(o.name)}</b> · 로그인이 끝났어요. 다시 로그인하면 AI를 쓸 수 있어요.</p>`
-      : `<p class="muted small" style="margin:0 0 8px">병원·센터가 계약한 경우에 써요. 진료 기록은 서버로 가지 않고 이 폰에만 있어요. 서버에는 소속과 환자별 동의 기록만 남아요.</p>`}
+  if (!s) h = `${head(o ? "로그인 필요" : "시작 전", "off")}${step(1)}
+    ${o ? `<p><b>${esc(o.name)}</b> · 로그인이 끝났어요. 다시 로그인하면 AI를 쓸 수 있어요.</p>`
+      : `<p class="hint">기관 계약이 있는 치료사만 써요. 진료 기록은 서버로 가지 않고 이 폰에만 있고, 서버에는 소속과 ${who()}별 동의 기록만 남아요.</p>`}
     <input type="email" id="instEmail" placeholder="이메일" autocomplete="username" value="${esc(i?.email || "")}">
-    <input type="password" id="instPw" placeholder="비밀번호 (8자 이상)" autocomplete="current-password" style="margin-top:6px">
-    <div class="row" style="gap:8px;margin-top:8px">${o ? "" : `<button class="btn" data-inst="signup" style="flex:1">가입</button>`}<button class="btn primary" data-inst="login" style="flex:1.4">로그인</button></div>
-    ${o ? `<button class="btn ghost" data-inst="leave" style="height:34px;padding:0;margin-top:6px;font-size:13px">이 폰에서 기관판 끄기</button>` : ""}`;
-  else if (!o) h = `<p class="small" style="margin:0 0 8px">${esc(s.email)}로 로그인했어요. 기관에 들어가 주세요.</p>
+    <input type="password" id="instPw" placeholder="비밀번호 (8자 이상)" autocomplete="current-password" style="margin-top:8px">
+    <div class="row" style="gap:8px;margin-top:10px">${o ? "" : `<button class="btn" data-inst="signup" style="flex:1;height:48px">처음이면 가입</button>`}<button class="btn primary" data-inst="login" style="flex:1.4">로그인</button></div>
+    ${o ? "" : `<p class="hint" style="margin:10px 0 0">가입하면 메일함에 확인 링크가 와요. 누른 뒤 여기서 로그인하세요.</p>`}
+    ${o ? `<button class="btn ghost" data-inst="leave" style="height:36px;padding:0;margin-top:8px;font-size:14px">이 폰에서 기관판 끄기</button>` : ""}`;
+  else if (!o) h = `${head("기관 없음", "wait")}${step(2)}
+    <p><b>${esc(s.email)}</b>로 로그인했어요. 이제 기관에 들어가세요.</p>
+    <p class="hint">관리자(병원 담당자)에게 받은 <b>초대 코드</b>를 넣으면 돼요.</p>
     <input id="instName" placeholder="표시 이름 (예: 김OT) · 관리자에게만 보여요" maxlength="20">
-    <input id="instCode" placeholder="초대 코드 10자리" maxlength="12" autocomplete="off" style="margin-top:6px;text-transform:uppercase">
-    <button class="btn primary block" data-inst="join" style="margin-top:8px">초대 코드로 들어가기</button>
-    <details style="margin-top:10px"><summary class="small muted">처음 쓰는 기관이면 새로 만들기 (관리자용)</summary>
-      <input id="instOrgName" placeholder="기관 이름" maxlength="80" style="margin-top:8px">
+    <input id="instCode" placeholder="초대 코드 10자리" maxlength="12" autocomplete="off" style="margin-top:8px;text-transform:uppercase">
+    <button class="btn primary block" data-inst="join" style="margin-top:10px">초대 코드로 들어가기</button>
+    <details style="margin-top:14px"><summary>우리 기관이 처음이면 → 기관 새로 만들기 (관리자용)</summary>
+      <p class="hint" style="margin:8px 0 6px">만드는 사람이 대표 관리자가 되고, 동료들에게 초대 코드를 만들어 줄 수 있어요.</p>
+      <input id="instOrgName" placeholder="기관 이름 (예: ○○재활병원)" maxlength="80">
       <div class="seg" id="instKind" style="margin-top:8px"><button class="on" data-kind="hospital">병원</button><button data-kind="center">발달센터</button></div>
-      <button class="btn block" data-inst="create" style="margin-top:8px">기관 만들기</button></details>
-    <button class="btn ghost" data-inst="logout" style="height:34px;padding:0;margin-top:6px;font-size:13px">로그아웃</button>`;
-  else h = `<p class="small" style="margin:0"><b>${esc(o.name)}</b> · ${ROLE_KO[o.role] || ""} · ${esc(s.email)}</p>
-    <p class="muted small" style="margin:4px 0 8px">AI ${o.ai_enabled ? (o.ai_basis === "per_patient_consent" ? `켜짐 · 동의 기록이 있는 ${who()}만` : "켜짐 · 기관 고지 기준") : "꺼짐"}${lockOn() ? "" : ` · <b style="color:var(--warn)">앱 잠금을 켜 주세요</b>`}</p>
-    <div class="row" style="gap:8px">${isInstAdmin() ? `<button class="btn" data-inst="admin" style="flex:1">기관 관리</button>` : ""}<button class="btn" data-inst="leave" style="flex:1">이 폰에서 끄기</button></div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><b class="small">PC 받기함</b>
-      ${i.pc?.code ? `<p class="small" style="margin:4px 0 8px">연결됨 · 코드 <b>${esc(i.pc.code.replace(/(.{4})(?=.)/g, "$1-"))}</b> · ${md(localDay(i.pc.at))}부터<br><span class="muted">복사할 때마다 같은 글이 PC 화면에도 떠요. 치료 끝나고 PC에서 복사 → 전자차트에 붙여 넣으면 돼요.</span></p>
-        <button class="btn" data-inst="pcOff" style="height:34px;padding:0 12px;font-size:13px">PC 연결 끊기</button>`
-      : `<p class="muted small" style="margin:4px 0 8px">병원 PC 브라우저에서 <b>${esc(PC_PAGE)}</b>를 열면 12자 코드가 떠요. 그 코드를 넣으면 복사한 기록이 PC 화면에도 떠요. 글은 암호화돼 서버는 읽지 못해요.</p>
-        <div class="row" style="gap:8px"><input id="pcCode" placeholder="PC 화면의 코드 12자" maxlength="14" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase;flex:1"><button class="btn primary" data-inst="pcOn" style="flex:none">연결</button></div>`}
-    </div>`;
+      <button class="btn primary block" data-inst="create" style="margin-top:10px">기관 만들기</button></details>
+    <button class="btn ghost" data-inst="logout" style="height:36px;padding:0;margin-top:8px;font-size:14px">로그아웃</button>`;
+  else h = `${head("사용 중", "on")}${step(3)}
+    <p><b>${esc(o.name)}</b> · ${ROLE_KO[o.role] || ""}<br><span class="hint">${esc(s.email)}</span></p>
+    <p class="hint">AI ${o.ai_enabled ? (o.ai_basis === "per_patient_consent" ? `<b style="color:var(--ok)">켜짐</b> · 동의 기록이 있는 ${who()}만` : `<b style="color:var(--ok)">켜짐</b> · 기관 고지 기준`) : `<b style="color:var(--warn)">꺼짐</b> · 관리자가 기관 관리에서 켜야 해요`}${lockOn() ? "" : ` · <b style="color:var(--warn)">앱 잠금을 켜 주세요</b>`}</p>
+    <div class="row" style="gap:8px">${isInstAdmin() ? `<button class="btn primary" data-inst="admin" style="flex:1.4">기관 관리 (초대·AI)</button>` : ""}<button class="btn" data-inst="leave" style="flex:1;height:48px">이 폰에서 끄기</button></div>`;
   $("#instBox").innerHTML = h;
+  if (o && s) {
+    $("#pcBox").innerHTML = `<div class="inst-head"><div class="ico">🖥️</div><div class="spacer"><b>PC 받기함</b><div class="sub">폰에서 복사한 기록을 병원 PC 화면으로</div></div><span class="pill ${i.pc?.code ? "on" : "wait"}">${i.pc?.code ? "연결됨" : "연결 전"}</span></div>
+      ${i.pc?.code ? `<p>코드 <b>${esc(i.pc.code.replace(/(.{4})(?=.)/g, "$1-"))}</b> · ${md(localDay(i.pc.at))}부터</p>
+        <p class="hint">이제 폰에서 <b>복사</b>를 누를 때마다 같은 글이 PC 화면에도 떠요. 치료 끝나고 PC에서 복사 → 전자차트에 붙여 넣으면 돼요.</p>
+        <button class="btn" data-inst="pcOff" style="height:40px;padding:0 14px;font-size:14px">PC 연결 끊기</button>`
+      : `<p class="hint">① 병원 PC 브라우저에서 <b>${esc(PC_PAGE)}</b> 열기 → ② 화면의 12자 코드를 아래에 넣기. 한 번만 하면 돼요. 글은 암호화돼 서버는 읽지 못해요.</p>
+        <div class="row" style="gap:8px"><input id="pcCode" placeholder="PC 화면의 코드 12자" maxlength="14" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase;flex:1;letter-spacing:1px"><button class="btn primary" data-inst="pcOn" style="flex:none;padding:0 18px">연결</button></div>`}`;
+  }
 }
 async function instAction(a) {
   const i = (db.settings.inst ||= {});
@@ -4017,7 +4041,7 @@ async function instAction(a) {
   }
 }
 let instBusy = false;
-$("#instBox").addEventListener("click", async (e) => {
+for (const sel of ["#instBox", "#pcBox"]) $(sel).addEventListener("click", async (e) => {
   const b = e.target.closest("button"); if (!b || instBusy) return;
   if (b.dataset.kind) { $("#instKind").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); return; }
   const a = b.dataset.inst; if (!a) return;

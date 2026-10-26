@@ -34,7 +34,7 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 ```
 
 - 설치는 항상 `--user 0` (듀얼 앱 프로필 user 95에 깔리면 권한·데이터가 따로라 혼란).
-- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 24 / 0.24). UTF-8(BOM 없음)로 저장.
+- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 25 / 0.25). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
 ## 친구 테스트 배포 (2026-10 결정: 병원판만 테스트)
