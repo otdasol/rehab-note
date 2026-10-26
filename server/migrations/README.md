@@ -26,3 +26,5 @@ select version, name, statements from supabase_migrations.schema_migrations orde
 | 20261026 | pc_relay | PC 받기함 중계 표 `pc_relay`(pair_id, ciphertext), anon 읽기·삭제/로그인 쓰기, realtime 발행, 5분마다 10분 지난 행 삭제(`purge_pc_relay`) |
 | 20261026 | pc_relay_insert_policy | 쓰기 정책을 `auth.uid() is not null`로 단순화 |
 | 20261026 | org_show_names | `organizations.show_names`(기본 false): 치료사 폰 안에서 환자 이름 표시 허용 여부 |
+| 20261026 | org_show_names_update_grant | 관리자가 `organizations.show_names`를 바꿀 수 있게 칸 단위 update 권한 추가 (빠져 있어서 토글이 "권한이 없어요"로 실패했음) |
+| 20261026 | audit_org_show_names | 기관 설정 감사 트리거에 show_names 포함 |

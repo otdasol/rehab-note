@@ -4135,6 +4135,7 @@ function logDetail(x) {
   if (d.scope) parts.push({ ai_processing: "AI 처리", report_messaging: "보고서", followup_contact: "퇴원 후 연락" }[d.scope] || d.scope);
   if (d.kind) parts.push(AI_KIND_KO[d.kind] || d.kind);
   if ("ai_enabled" in d) parts.push(`AI ${d.ai_enabled ? "켬" : "끔"}`);
+  if ("show_names" in d) parts.push(`이름 표시 ${d.show_names ? "허용" : "끔"}`);
   if (d.ai_basis) parts.push(d.ai_basis === "notice" ? "근거: 기관 고지" : "근거: 환자별 동의");
   if (d.role) parts.push(ROLE_KO[d.role] || d.role);
   if (x.action === "invite.create" && x.target_id) parts.push(ROLE_KO[x.target_id] || x.target_id);
@@ -4217,7 +4218,7 @@ $("#dlgAdmin").addEventListener("click", async (e) => {
       if (!Object.entries(patch).every(([k, v]) => o[k] === v)) {
         const [row] = await sbUser(`/rest/v1/organizations?id=eq.${o.id}`, { method: "PATCH", body: patch, prefer: "return=representation" });
         if (!row) throw new Error("권한이 없어요");
-        Object.assign(o, patch); save(); toast("기관 설정을 바꿨어요"); await loadAdmin();
+        Object.assign(o, patch); save(); toast("저장했어요 · 구성원 폰에는 다음에 앱을 열 때 반영돼요"); await loadAdmin();
       }
     }
     if (b.dataset.remove) { await rpc("remove_member", { p_org: o.id, p_user: b.dataset.remove }); toast("해지했어요"); await loadAdmin(); }
