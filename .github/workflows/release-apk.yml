@@ -15,6 +15,10 @@ on:
         description: "개인판(Rehab노트) APK도 같이 올리기"
         type: boolean
         default: false
+      release:
+        description: "Releases에 올리기 (태그 v<versionName>을 만든다. 태그를 직접 못 미는 Claude 세션용)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -93,16 +97,16 @@ jobs:
           path: out/*.apk
           retention-days: 14
 
-      - name: Releases에 올리기 (태그일 때만)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Releases에 올리기 (태그 푸시 또는 release 입력)
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release == true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          tag="${GITHUB_REF_NAME}"
+          tag="v${{ steps.ver.outputs.name }}"
           notes=$'AI Rehab노트 테스트판 '"${{ steps.ver.outputs.name }}"$'\n\n안드로이드: 아래 apk를 폰 브라우저로 내려받아 설치하세요 (\"출처를 알 수 없는 앱\" 허용).\n아이폰: https://otdasol.github.io/rehab-note/ 를 Safari로 열고 공유 → 홈 화면에 추가.\n\n테스트판입니다. 실제 환자 정보는 넣지 마세요.'
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" out/*.apk --clobber
           else
-            gh release create "$tag" out/*.apk --title "AI Rehab노트 ${{ steps.ver.outputs.name }} 테스트" --notes "$notes"
+            gh release create "$tag" out/*.apk --target "$GITHUB_SHA" --title "AI Rehab노트 ${{ steps.ver.outputs.name }} 테스트" --notes "$notes"
           fi
