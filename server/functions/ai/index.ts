@@ -50,7 +50,7 @@ const ROLE_RULES: Record<string, string> = {
 - S: 대상자/보호자의 호소·말. O: 실시한 치료 활동(ADL 훈련, 상지 기능, 인지, 연하 등)과 관찰, 수행 수준, 평가 결과. A: 치료사 관점의 변화·문제 요약. P: 다음 계획.`,
   PT: `- 직무: 물리치료(PT).
 - 문체: 한국 병원 PT 일지처럼 짧은 개조식, "~함/~보임" 체. 영어 약어(ROM, MMT, A-ROM, P-ROM, WB, PWB, FWB, min A, mod A, AFO, cane, walker, TENS, ICT, FES, HP, US 등)는 임상에서 쓰는 대로 씁니다.
-- S: 대상자/보호자의 호소·말(통증 부위·정도 포함). O: 치료 종목과 시간(운동치료, 보행·균형 훈련, 매트·이동 훈련, 전기치료, 온열·한랭, 초음파 등), 보행 거리·보조도구·보조 수준, 근력·ROM·균형 관찰, 활력징후, 평가 결과. A: 치료사 관점의 변화·문제 요약. P: 다음 계획.`,
+- S: 대상자/보호자의 호소·말(통증 부위·양상·정도 포함). O: 치료 종목과 시간(운동치료, 보행·균형 훈련, 매트·이동 훈련, 전기치료, 온열·한랭, 초음파 등), 체중지지 지시(NWB/PWB/WBAT/FWB), 보행 거리·보조도구·보조 수준, 운동별 강도·세트×반복·시간(FITT), 근력(MMT)·ROM은 관절·동작·좌우별로, 균형 관찰, 운동 전후 활력징후·NRS, 평가 결과. A: 치료사 관점의 변화·문제 요약(점진적 과부하·체중지지 진행 여부 포함). P: 다음 계획과 가정운동(HEP) 처방.`,
   // 아동발달센터 직무. 둘째 줄까지가 회기 기록 문체로 쓰인다.
   SI: `- 직무: 아동발달센터 감각통합치료(작업치료사). 대상은 영유아·아동.
 - 문체: 발달센터 회기 기록처럼 짧은 개조식 "~함/~보임" 체. 활동은 "- 활동명 N분: 반응·수행(촉구 수준)" 형식으로 쓰고, 감각 반응(추구·회피·민감·낮은 등록), 각성·자기조절, 자세·운동계획, 소근육·자조 수행을 구체적으로 적습니다. 아동은 "아동", 보호자는 "보호자"로 씁니다.
@@ -233,6 +233,7 @@ const ideasPrompt = (role: string) => `당신은 ${MENTOR[role]}로, 임상 지�
 
 ideas: 3~4개. 서로 다른 접근이 되도록 고릅니다(예: ${role === "PT" ? "과제 지향 보행·이동 훈련, 점진적 저항 근력 강화, 균형·낙상 예방 훈련, 보조도구 적용, 보호자 교육" : "과제 지향 훈련, 보상 전략·보조도구, 기능 회복 훈련, 보호자 교육"}). 각 항목은
 - title: 활동 이름(짧게)
+- theory: 이 중재가 어떤 이론·원리에 입각한 것인지 한 줄(이론 이름 + 핵심 원리 한 구절). 예: "운동학습 이론 · 과제 특이적 반복과 피드백 점감", "신경가소성 원리 · 사용 의존적 재조직(강도·반복·현저성)", "점진적 과부하 원리 · 저항을 단계적으로 올려 근력 적응 유도", "운동 조절(시스템) 이론 · 과제·개인·환경 상호작용", "PNF · 신경생리학적 촉진(저항·신장·구두 지시)", "조직 치유 단계 · 증식기엔 통제된 부하", "통증 신경과학 교육 · 통증 재개념화", "Bobath/NDT · 정상 움직임 패턴 촉진", "운동 발달 이론", "감각통합 이론 · 적응 반응", "응용행동분석 · 강화·촉구 절차", "학습 이론(Bandura) · 모델링". 치료사가 '왜 이 중재인지' 한 줄로 설명할 수 있게 쓴다.
 - approach: 접근법 이름 한 단어~한 구절(예: ${role === "PT" ? "과제 지향 보행 훈련, 체중지지 훈련, 점진적 저항 운동, 균형 훈련, 낙상 예방 교육, 유산소 지구력 훈련" : "과제 지향 훈련, 강제유도운동치료(CIMT) 변형, 거울치료, 에너지 보존 교육, 보상 전략"})
 - goal: 이 활동이 겨냥하는 목표 한 줄. 입력에 목표가 있으면 그 목표와 연결
 - why: 이 대상자에게 맞는 이유 한두 문장. 오늘 수행 수준·점수·반응에 근거
@@ -269,7 +270,7 @@ const supervisePrompt = (role: string) => `당신은 ${MENTOR[role]}입니다. �
 출력:
 - summary: 지금 상황을 2~3문장으로. 정체가 맞는지, 기록상 무엇이 근거인지 판단합니다.
 - hypotheses: 정체(또는 고민)의 원인 가설 2~4개 {cause, evidence: 입력 기록 중 근거, check: 가설을 확인할 평가·관찰 방법}. 중재 강도·난이도·과제 특이성·피드백 방식·동기·인지·환경·보호자 요인 등을 고루 검토합니다.
-- changes: 중재 변경안 2~4개 {name, rationale: 왜 이 대상자에게, evidence_level: "강"|"중"|"약"|"전문가 합의", evidence_basis: 근거 종류, how: 빈도·강도·진행 방법을 구체적으로, measure: 효과를 확인할 지표와 시점}.
+- changes: 중재 변경안 2~4개 {name, theory: 입각한 이론·원리 한 줄(이론 이름 + 핵심 원리), rationale: 왜 이 대상자에게, evidence_level: "강"|"중"|"약"|"전문가 합의", evidence_basis: 근거 종류, how: 빈도·강도·진행 방법을 구체적으로, measure: 효과를 확인할 지표와 시점}.
 - reassess: 언제, 무엇으로 재평가할지.
 - teaching_point: 이 사례에서 후배가 배울 임상 추론 포인트 한두 문장(교수 관점).
 - caution: 안전 주의점(주의사항이 입력에 있으면 반드시 반영). 없으면 빈 문자열.
@@ -287,7 +288,7 @@ const SUPERVISE_SCHEMA = {
   properties: {
     summary: { type: "string" },
     hypotheses: { type: "array", items: { type: "object", properties: { cause: { type: "string" }, evidence: { type: "string" }, check: { type: "string" } }, required: ["cause", "evidence", "check"], additionalProperties: false } },
-    changes: { type: "array", items: { type: "object", properties: { name: { type: "string" }, rationale: { type: "string" }, evidence_level: { type: "string", enum: ["강", "중", "약", "전문가 합의"] }, evidence_basis: { type: "string" }, how: { type: "string" }, measure: { type: "string" } }, required: ["name", "rationale", "evidence_level", "evidence_basis", "how", "measure"], additionalProperties: false } },
+    changes: { type: "array", items: { type: "object", properties: { name: { type: "string" }, theory: { type: "string" }, rationale: { type: "string" }, evidence_level: { type: "string", enum: ["강", "중", "약", "전문가 합의"] }, evidence_basis: { type: "string" }, how: { type: "string" }, measure: { type: "string" } }, required: ["name", "theory", "rationale", "evidence_level", "evidence_basis", "how", "measure"], additionalProperties: false } },
     reassess: { type: "string" },
     teaching_point: { type: "string" },
     caution: { type: "string" },
@@ -304,12 +305,12 @@ const IDEAS_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          title: { type: "string" }, approach: { type: "string" }, goal: { type: "string" }, why: { type: "string" },
+          title: { type: "string" }, theory: { type: "string" }, approach: { type: "string" }, goal: { type: "string" }, why: { type: "string" },
           materials: { type: "string" }, steps: { type: "array", items: { type: "string" } },
           easier: { type: "string" }, harder: { type: "string" }, observe: { type: "string" }, record_example: { type: "string" },
           evidence: { type: "string" }, dose: { type: "string" }, progress: { type: "string" },
         },
-        required: ["title", "approach", "goal", "why", "materials", "steps", "easier", "harder", "observe", "record_example", "evidence", "dose", "progress"],
+        required: ["title", "theory", "approach", "goal", "why", "materials", "steps", "easier", "harder", "observe", "record_example", "evidence", "dose", "progress"],
         additionalProperties: false,
       },
     },

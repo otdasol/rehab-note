@@ -12,6 +12,8 @@
 
 - 사용자 원칙: "개인판에서는 개인정보보호위반이나 동의없이는 법에 위반될만한 사항이 절대 있어서는 안돼." 개인판에 네트워크·AI·마이크를 다시 넣지 말 것. 새 AI 기능은 병원판에만.
 - 두 앱의 핵심은 **입원·중간·퇴원 보고서 작성 보조**. 병원판 차별점은 **음성**(말로 한꺼번에 → AI가 칸별 정리, 전문가 초안).
+- **주 판매 대상은 물리치료사·병원 구독** (2026-10-26 결정: "메인 판매 대상자는 물리치료라고 해도 과언이 아니다. 개인보다는 병원 구독 위주"). PT 기능은 OT와 같은 수준으로 유지하고 새 기능은 PT를 먼저 생각한다. AI는 치료사가 치료하며 성장하게 돕는 방향(중재마다 **입각한 이론·원리 한 줄** `theory`).
+- 평가도구는 **치료실에 실제로 있는 것만** (설문지·연구용·의사가 매기는 척도는 뺀다). 2026-10 정리: PT에서 ABC·TIS·PASS·SPADI·LEFS·K-WOMAC·FGA 제외, 5xSTS·TCT 추가; OT에서 CDR·GDS 제외.
 
 ## 구조
 
@@ -19,7 +21,7 @@
 - 판 구분: `const EDITION` 줄. 빌드가 이 줄을 바꾸고, 개인판은 `RELAY_URL`·`RELAY_KEY`·`SB_URL`을 비우고 `cdn.jsdelivr` 줄을 지운다 (`android/app/build.gradle.kts`의 `webUi`). JS에서는 `PERSONAL`일 때 `inst()`·`instOrg()`는 null, `aiOn()`은 false.
 - `android/app/src/personal/AndroidManifest.xml`: INTERNET·RECORD_AUDIO·알림·녹음 서비스 권한 제거. 남는 건 생체인증뿐.
 - 개인정보처리방침: 개인판 `privacy-personal.html`, 병원판 `privacy.html`.
-- 서버: Supabase 프로젝트 `orlabcbhnarulribebvy`. AI 중계 edge function `ai` = `server/functions/ai/index.ts` (현재 v17). DB 기록은 `server/migrations/README.md`.
+- 서버: Supabase 프로젝트 `orlabcbhnarulribebvy`. AI 중계 edge function `ai` = `server/functions/ai/index.ts` (현재 v18, 2026-10-26: ideas/supervise에 `theory`, PT 규칙에 FITT·WB). DB 기록은 `server/migrations/README.md`.
 - `src/<flavor>/assets`는 빌드 때 만들어지므로 git에 없다.
 
 ## 빌드·설치 (안드로이드 SDK가 있는 집 PC에서)
@@ -32,7 +34,7 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 ```
 
 - 설치는 항상 `--user 0` (듀얼 앱 프로필 user 95에 깔리면 권한·데이터가 따로라 혼란).
-- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 22 / 0.22). UTF-8(BOM 없음)로 저장.
+- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 23 / 0.23). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
 ## 친구 테스트 배포 (2026-10 결정: 병원판만 테스트)
@@ -100,6 +102,13 @@ git tag v0.23; git push origin v0.23
 - 1단계(서버 표·권한·자동 파기), 2단계(로그인·초대·환자 토큰·동의 화면·해지 시 기기 데이터 삭제·관리자 메뉴) 완료.
 - 다음: 3단계 월 집계·대시보드, 4단계 리포트 링크·퇴원 후 설문, 알림톡(사용자가 준비하면), 사용자 지정 SMTP.
 - 아직 폰에서 확인 못 한 것: 병원판 보고서 받아쓰기(녹음 → 서버 받아쓰기)와 기기 음성 인식.
+
+## 물리치료 기록 구조 (0.23)
+
+- 평가: `MMT`·`ROM`은 `table: true` → 평가 탭 "+ MMT 부위" → `JOINTS`(관절→동작) 고르면 `"MMT 무릎 신전 (Rt)"`처럼 줄이 생긴다(`jointPick`). 등급은 글자 입력(4+), ROM은 °. 양쪽 넣으면 손상측 줄에 건측 대비(ROM만).
+- 해석: `interpret()`가 10MWT(초로 넣으면 m/s 변환·Perry 보행 수준), TUG 13.5초, BBS 45/40/20, 5xSTS 15초, FAC, MAS를 한 줄로 풀어 `calc`에 넣는다. 출처는 문구에 둔 것만 쓴다(확실치 않은 MCID는 넣지 않는다).
+- 물리치료 상세(`PTD`/`ptOf`): 물리요법 시간·설정(`modMin`·`modSet`), 체중지지 `wb`(NWB~FWB), 보행 보조 수준 `gaitAssist`, 운동별 FITT `exd[name]={load,sets,min}`, 가정운동 `hep`·`hepFreq`, 통증 `painSite`·`painType`·`painWhen`. `vitalFlags()`가 BP≥180/100(보류)·≥220/110(중단)·수축기 10↓·HR≥130·SpO2<90·Borg≥15·NRS +2를 경고하고 기록 끝에 ⚠로 붙인다(참고 기준, 기관 지침 우선).
+- 보고서: `ptChange()`가 기준→현재 회기의 보행(WB·보조도구·거리·보조 수준)·NRS·HEP 변화를 [기능 변화]에 넣는다.
 
 ## 보고서 기능 (핵심)
 
