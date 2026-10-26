@@ -1,6 +1,6 @@
-# 웹 테스트판을 GitHub Pages에 올린다 (아이폰 등 APK를 못 받는 테스터용).
-# main에 푸시될 때마다 다시 배포. 올라가는 건 화면 파일·방침·그림뿐이고 android/·server/는 올라가지 않는다.
-# 주소: https://otdasol.github.io/rehab-note/  (개인판 ot-note.html, 병원판 ot-note.html?edition=hospital)
+# 병원판(AI Rehab노트) 웹 테스트판을 GitHub Pages에 올린다 (아이폰 등 APK를 못 받는 테스터용).
+# main에 푸시될 때마다 다시 배포. 주소 https://otdasol.github.io/rehab-note/ 를 열면 바로 병원판이다 (선택 화면 없음).
+# 올라가는 건 화면 파일·병원판 방침·그림뿐이고 android/·server/·개인판은 올라가지 않는다.
 name: pages
 
 on:
@@ -9,9 +9,7 @@ on:
     paths:
       - ot-note.html
       - privacy.html
-      - privacy-personal.html
       - design/**
-      - web/**
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -33,11 +31,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 올릴 파일 모으기
+      - name: 병원판으로 고정해서 올릴 파일 모으기
         run: |
           set -e
           mkdir -p _site/design
-          cp web/index.html ot-note.html privacy.html privacy-personal.html _site/
+          # 안드로이드 빌드(build.gradle.kts의 webUi)와 같은 규칙: EDITION 줄만 hospital로 바꾼다. 홈 화면 이름도 병원판으로.
+          python3 - <<'EOF'
+          src = open("ot-note.html", encoding="utf-8").read().split("\n")
+          out = []
+          for line in src:
+              if line.startswith("const EDITION = "):
+                  line = 'const EDITION = "hospital";'
+              elif 'name="apple-mobile-web-app-title"' in line:
+                  line = '<meta name="apple-mobile-web-app-title" content="AI Rehab노트">'
+              elif line.strip() == "<title>Rehab노트</title>":
+                  line = "<title>AI Rehab노트</title>"
+              out.append(line)
+          assert sum(1 for l in out if l == 'const EDITION = "hospital";') == 1, "EDITION 줄을 못 찾았다"
+          open("_site/index.html", "w", encoding="utf-8").write("\n".join(out))
+          EOF
+          cp privacy.html _site/
           cp design/splash.webp design/logo.png design/mascot.webp design/mascot-desk.webp _site/design/
           # 홈 화면 아이콘(180px)은 design/icon.png에서 만든다. 원본은 건드리지 않는다.
           python3 -m pip install --quiet pillow
@@ -49,8 +62,6 @@ jobs:
           ls -R _site
 
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:

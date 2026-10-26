@@ -35,12 +35,19 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 - 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 22 / 0.22). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
-## 웹 테스트판 (GitHub Pages)
+## 친구 테스트 배포 (2026-10 결정: 병원판만 테스트)
 
-- 아이폰 등 APK를 못 받는 테스터용. `main`에 푸시하면 `.github/workflows/pages.yml`이 `https://otdasol.github.io/rehab-note/`에 올린다.
-- 올라가는 것: `web/index.html`(안내 첫 화면) + `ot-note.html` + 방침 2개 + `design/` 그림 4개 + `icon.png`에서 만든 `icon-180.png`. `android/`·`server/`는 올리지 않는다.
-- 판 구분은 주소로: 개인판 `ot-note.html`, 병원판 `ot-note.html?edition=hospital`. 웹판은 빌드 필터를 거치지 않으므로 HTML 안에 서버 주소가 남아 있지만 `PERSONAL`이면 JS가 연결하지 않는다.
-- iOS 앱(TestFlight·App Store)은 사업화 단계에서 한다. 지금은 웹판으로만 아이폰 테스트.
+- **아이폰 → 웹판**: `main`에 푸시하면 `.github/workflows/pages.yml`이 `https://otdasol.github.io/rehab-note/`에 **병원판만** 올린다 (EDITION을 hospital로 고정한 `index.html`, 선택 화면 없음). 올라가는 것: index.html + `privacy.html` + `design/` 그림 4개 + `icon.png`에서 만든 `icon-180.png`. 개인판·`android/`·`server/`는 올리지 않는다.
+- 카톡 안 브라우저에는 "홈 화면에 추가"가 없다. 아이폰은 카톡 링크 → 오른쪽 아래 메뉴 → **Safari로 열기** → 공유 → 홈 화면에 추가.
+- **안드로이드 → 설치형 APK**: 집 PC에서 릴리즈 빌드 후 GitHub Releases에 올려 링크를 보낸다 (카톡은 apk 첨부가 막히거나 바뀔 수 있음):
+
+```powershell
+gh release create v0.22 android\app\build\outputs\apk\hospital\release\app-hospital-release.apk --title "AI Rehab노트 0.22 테스트" --notes "테스트판. 실제 환자 정보는 넣지 마세요."
+# 받는 링크: https://github.com/otdasol/rehab-note/releases/latest  → 폰 브라우저로 열어 apk 내려받기 → "출처를 알 수 없는 앱" 허용 → 설치
+```
+
+- 테스터는 앱 안에서 가입(이메일) → 메일 확인 → 로그인 → **초대 코드 10자리** 입력해야 기관에 들어간다. 초대 코드는 관리자(교수)가 설정 › 기관판 › 관리자에서 만든다. 코드 하나 = 한 사람, 7일.
+- iOS 앱(TestFlight·App Store)은 사업화 단계에서 한다.
 
 ## 릴리즈 서명 (친구 테스트·Play 배포용)
 
