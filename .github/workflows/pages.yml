@@ -1,0 +1,60 @@
+# 웹 테스트판을 GitHub Pages에 올린다 (아이폰 등 APK를 못 받는 테스터용).
+# main에 푸시될 때마다 다시 배포. 올라가는 건 화면 파일·방침·그림뿐이고 android/·server/는 올라가지 않는다.
+# 주소: https://otdasol.github.io/rehab-note/  (개인판 ot-note.html, 병원판 ot-note.html?edition=hospital)
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ot-note.html
+      - privacy.html
+      - privacy-personal.html
+      - design/**
+      - web/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 올릴 파일 모으기
+        run: |
+          set -e
+          mkdir -p _site/design
+          cp web/index.html ot-note.html privacy.html privacy-personal.html _site/
+          cp design/splash.webp design/logo.png design/mascot.webp design/mascot-desk.webp _site/design/
+          # 홈 화면 아이콘(180px)은 design/icon.png에서 만든다. 원본은 건드리지 않는다.
+          python3 -m pip install --quiet pillow
+          python3 - <<'EOF'
+          from PIL import Image
+          im = Image.open("design/icon.png").convert("RGBA")
+          im.resize((180, 180), Image.LANCZOS).save("_site/design/icon-180.png", optimize=True)
+          EOF
+          ls -R _site
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

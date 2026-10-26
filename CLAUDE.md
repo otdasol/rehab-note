@@ -35,6 +35,13 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 - 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 22 / 0.22). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
+## 웹 테스트판 (GitHub Pages)
+
+- 아이폰 등 APK를 못 받는 테스터용. `main`에 푸시하면 `.github/workflows/pages.yml`이 `https://otdasol.github.io/rehab-note/`에 올린다.
+- 올라가는 것: `web/index.html`(안내 첫 화면) + `ot-note.html` + 방침 2개 + `design/` 그림 4개 + `icon.png`에서 만든 `icon-180.png`. `android/`·`server/`는 올리지 않는다.
+- 판 구분은 주소로: 개인판 `ot-note.html`, 병원판 `ot-note.html?edition=hospital`. 웹판은 빌드 필터를 거치지 않으므로 HTML 안에 서버 주소가 남아 있지만 `PERSONAL`이면 JS가 연결하지 않는다.
+- iOS 앱(TestFlight·App Store)은 사업화 단계에서 한다. 지금은 웹판으로만 아이폰 테스트.
+
 ## 릴리즈 서명 (친구 테스트·Play 배포용)
 
 - 키는 두 앱 공용, 저장소 루트 `rehabnote-release.jks` (git 제외). 비밀번호는 `android/keystore.properties` (git 제외, 예시 `android/keystore.properties.example`).
