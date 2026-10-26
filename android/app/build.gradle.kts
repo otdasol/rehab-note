@@ -1,5 +1,14 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
+}
+
+// 릴리즈 서명 키 정보는 android/keystore.properties(git에 올리지 않음)에서 읽는다.
+// 파일이 없으면 릴리즈 빌드는 서명 없이 만들어지므로(설치 불가) 먼저 키를 만들어야 한다. 방법은 CLAUDE.md "릴리즈 서명".
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -31,6 +40,27 @@ android {
     }
 
     buildFeatures { resValues = true } // 판마다 앱 이름을 다르게
+
+    // 두 앱 모두 같은 키로 서명한다. 한 번 Play에 올린 뒤에는 이 키로만 업데이트할 수 있으니 절대 잃어버리지 말 것.
+    signingConfigs {
+        create("release") {
+            if (keystoreProps.isNotEmpty()) {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            // 화면이 WebView 안의 HTML이라 코드 축소로 얻는 게 거의 없다. 켜면 OTNative 브리지가 깎여 나갈 위험만 있다.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            signingConfig = if (keystoreProps.isNotEmpty()) signingConfigs.getByName("release") else null
+        }
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

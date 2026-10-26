@@ -10,8 +10,11 @@ android/app/src/personal/assets/
 android/app/src/hospital/assets/
 android/app/src/main/assets/
 *.apk
+*.aab
 *.keystore
 *.jks
+# 릴리즈 서명 키 비밀번호 (예시는 android/keystore.properties.example)
+android/keystore.properties
 
 # Claude 개인 설정
 .claude/settings.local.json

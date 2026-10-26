@@ -35,6 +35,28 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 - 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 22 / 0.22). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
+## 릴리즈 서명 (친구 테스트·Play 배포용)
+
+- 키는 두 앱 공용, 저장소 루트 `rehabnote-release.jks` (git 제외). 비밀번호는 `android/keystore.properties` (git 제외, 예시 `android/keystore.properties.example`).
+- **키를 잃으면 같은 앱으로 다시는 업데이트할 수 없다.** jks와 비밀번호를 클라우드 등 두 군데 이상에 백업한다. Claude는 비밀번호를 대신 정하거나 입력하지 않는다.
+- 키 만들기 (처음 한 번, 저장소 루트에서):
+
+```powershell
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore rehabnote-release.jks -alias rehabnote -keyalg RSA -keysize 2048 -validity 10000
+```
+
+- 릴리즈 APK 빌드 (키·properties가 있을 때만 서명됨):
+
+```powershell
+& "...\gradle.bat" -p android assemblePersonalRelease assembleHospitalRelease
+# 결과: android\app\build\outputs\apk\personal\release\app-personal-release.apk
+#       android\app\build\outputs\apk\hospital\release\app-hospital-release.apk
+```
+
+- 테스트용으로 뿌리는 APK도 반드시 릴리즈 키로 서명한다 (debug 키로 깔린 앱 위에는 Play 버전이 설치되지 않는다).
+- 폰에 debug 판이 깔려 있으면 먼저 지우고 설치: `adb uninstall com.rehabnote.app` / `adb uninstall com.rehabnote.ai`.
+- Play에 올릴 때는 AAB: `bundlePersonalRelease bundleHospitalRelease` → `android\app\build\outputs\bundle\...`.
+
 ## AI 비용 원칙 ("수지타산")
 
 - Opus 쓰지 않는다. `cheap`=Haiku 5.5(말한 내용 칸별 나누기·안내문), `write`=Sonnet 5.5 effort low(SOAP·기록·검토), `think`=Sonnet 5.5 effort medium(보고서 전문가 초안 `report_mode=draft`·중재 추천·슈퍼비전).
