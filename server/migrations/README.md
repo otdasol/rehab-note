@@ -25,3 +25,4 @@ select version, name, statements from supabase_migrations.schema_migrations orde
 | 20261026 | invite_drop_old_signature | 옛 `create_invite(uuid, member_role)` 삭제 (rpc 모호성 방지) |
 | 20261026 | pc_relay | PC 받기함 중계 표 `pc_relay`(pair_id, ciphertext), anon 읽기·삭제/로그인 쓰기, realtime 발행, 5분마다 10분 지난 행 삭제(`purge_pc_relay`) |
 | 20261026 | pc_relay_insert_policy | 쓰기 정책을 `auth.uid() is not null`로 단순화 |
+| 20261026 | org_show_names | `organizations.show_names`(기본 false): 치료사 폰 안에서 환자 이름 표시 허용 여부 |

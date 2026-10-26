@@ -18,8 +18,8 @@ android {
     defaultConfig {
         minSdk = 28
         targetSdk = 35
-        versionCode = 25
-        versionName = "0.25"
+        versionCode = 26
+        versionName = "0.26"
     }
 
     // 앱 두 개: 개인판(Rehab노트)은 인터넷·마이크 권한이 없고 AI가 전혀 없다.
@@ -87,7 +87,7 @@ fun webUi(edition: String) = tasks.registering(Copy::class) {
         }
     }
     from(rootProject.file(if (personal) "../privacy-personal.html" else "../privacy.html")) { rename { "privacy.html" } }
-    from(rootProject.file("../design")) { include("splash.webp", "logo.png", "mascot.webp", "mascot-desk.webp"); into("design") }
+    from(rootProject.file("../design")) { include("splash.webp", "logo.png", "logo-ai.png", "mascot.webp", "mascot-desk.webp"); into("design") }
     into(layout.projectDirectory.dir("src/$edition/assets"))
 }
 val webUiPersonal by webUi("personal")

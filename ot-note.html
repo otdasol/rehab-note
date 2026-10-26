@@ -312,6 +312,7 @@
   .fee-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1.5px solid transparent; font-size: 14.5px; font-weight: 600; }
   .fee-item.active { border-color: var(--primary); background: var(--primary-soft); }
   .fee-item .n { width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; display: grid; place-items: center; flex: none; }
+  .pname { font-weight: 600; color: var(--primary); font-size: 0.92em; }
   .inst-card { margin: 10px 0 14px; padding: 16px; border-radius: 18px; background: linear-gradient(180deg, #EEF8F7, #FFFFFF 60%); border: 1.5px solid var(--primary); color: var(--ink); font-size: 15px; font-weight: 500; }
   .inst-card .inst-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .inst-card .inst-head .ico { width: 36px; height: 36px; border-radius: 12px; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 18px; flex: none; }
@@ -330,6 +331,7 @@
   .cart-line { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px; }
   .cart-line input { width: 96px; text-align: right; font-weight: 800; padding: 8px 10px; }
   .cart-line .unit { width: 40px; font-size: 12px; color: var(--muted); }
+  .toast:popover-open { display: block; position: fixed; inset: auto; top: calc(16px + env(safe-area-inset-top)); left: 50%; right: auto; bottom: auto; transform: translateX(-50%); margin: 0; border: 0; overflow: visible; max-width: calc(100vw - 32px); }
   .toast { position: fixed; top: calc(16px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 30; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-weight: 700; font-size: 14px; display: none; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
   .note-tip { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--teal-soft); color: var(--teal); font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
   .note-tip.err { background: var(--rec-soft); color: var(--rec); }
@@ -382,7 +384,7 @@
 
 <header class="appbar">
   <div class="wrap row">
-    <div class="brand"><img class="logo" src="./design/logo.png" alt="">Rehab노트<span class="role-chip" id="roleChip"></span></div>
+    <div class="brand"><img class="logo" src="./design/logo.png" alt="">Rehab노트<button class="role-chip" id="roleChip" aria-label="직무 바꾸기" style="border:0;cursor:pointer;font:inherit"></button></div>
     <span class="spacer"></span>
     <button class="icon-btn" id="btnSettings" aria-label="설정"><svg class="icon"><use href="#i-gear"/></svg></button>
   </div>
@@ -490,8 +492,9 @@
 </dialog>
 <dialog class="sheet" id="picker"></dialog>
 <dialog class="full" id="onboard">
-  <div class="full-body" style="padding-top:calc(48px + env(safe-area-inset-top))">
+  <div class="full-body" id="onboardRoles" style="position:relative;padding-top:calc(48px + env(safe-area-inset-top))">
     <div class="brand" style="font-size:22px"><img class="logo" src="./design/logo.png" alt="" style="width:40px;height:40px;border-radius:12px">Rehab노트</div>
+    <button class="btn" id="btnAdminMode" style="position:absolute;right:16px;top:calc(14px + env(safe-area-inset-top));height:36px;padding:0 12px;font-size:13.5px" hidden>🔑 관리자 모드</button>
     <h1 style="font-size:28px;letter-spacing:-0.04em;margin:28px 0 6px">어떤 치료사이신가요?</h1>
     <p class="muted" style="margin:0 0 20px">직무에 맞는 평가도구와 일지 양식으로 시작해요. 설정에서 언제든 바꿀 수 있어요.</p>
     <p class="onb-group">🏥 병원</p>
@@ -514,6 +517,22 @@
     <div class="inst-card" style="margin-top:0"><div id="obInstBox"></div></div>
     <button class="btn primary block" id="obStart" style="height:52px;font-size:17px" disabled>시작하기</button>
     <button class="btn ghost block" id="obLater" style="height:40px;margin-top:6px;font-size:14px">나중에 할게요 (설정 맨 위에서 언제든)</button>
+    <button class="btn ghost block" id="obBack" style="height:36px;margin-top:2px;font-size:13.5px">← 치료사 선택으로</button>
+  </div>
+  <div class="full-body" id="onboardAdmin" hidden style="padding-top:calc(48px + env(safe-area-inset-top))">
+    <div class="brand" style="font-size:22px"><img class="logo" src="./design/logo.png" alt="" style="width:40px;height:40px;border-radius:12px">AI Rehab노트</div>
+    <h1 style="font-size:26px;letter-spacing:-0.04em;margin:24px 0 6px">🔑 관리자 모드</h1>
+    <p class="muted" style="margin:0 0 14px">기관 만들기, 초대 코드, AI 켜기, 이름 표시, 구성원 관리는 여기서만 해요. 치료 기록은 치료사 모드에서 하세요(관리자도 치료사로 들어가면 돼요).</p>
+    <div class="inst-card" style="margin-top:0"><div id="adminBox"></div></div>
+    <button class="btn ghost block" id="admBack" style="height:40px;margin-top:6px;font-size:14px">← 치료사 선택으로</button>
+  </div>
+</dialog>
+<dialog class="sheet" id="dlgRole">
+  <div class="grab"></div>
+  <div class="sheet-body">
+    <h2 style="margin:6px 0 4px;letter-spacing:-0.03em">직무 바꾸기</h2>
+    <p class="muted small" style="margin:0 0 12px">감각통합도 하고 언어치료도 하는 분은 회기마다 바꿔 쓰세요. 바꾼 뒤 기록하는 회기에 그 직무가 표시돼요.</p>
+    <div id="roleGrid" class="chips"></div>
   </div>
 </dialog>
 <dialog class="sheet" id="dlgSettings">
@@ -577,7 +596,7 @@
     <button class="btn ghost" id="btnPrivacy" style="height:36px;padding:0;margin-top:6px;font-size:14px">개인정보처리방침 ›</button>
   </div>
 </dialog>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" popover="manual"></div>
 
 <script type="module">
 // ---------- 직무별 평가도구: 도구 이름과 점수 범위만 담고, 문항은 넣지 않는다 ----------
@@ -889,6 +908,9 @@ const LABEL_SEQ = [...ABC, ...ABC.flatMap((a) => ABC.map((b) => a + b))];
 /** 지금 쓰지 않는 표시를 앞에서부터 n개 */
 const freeLabels = (n) => { const used = new Set(activePatients().map((p) => p.label)); return LABEL_SEQ.filter((x) => !used.has(x)).slice(0, n); };
 const patientOf = (s) => (s.pid && db.patients.find((p) => p.id === s.pid)) || null;
+// 기관이 허용하고 앱 잠금이 켜졌을 때만 이름을 폰 화면에 보여 준다. 이름은 기록 글·전송·복사본에 절대 넣지 않는다(라벨만).
+const namesOn = () => !PERSONAL && !!instOrg()?.show_names && lockOn();
+const pname = (x) => { if (!namesOn()) return ""; const p = x?.pid ? patientOf(x) : x; return p?.name ? ` <span class="pname">${esc(p.name)}</span>` : ""; };
 const fillFrom = (s, p) => Object.assign(s, { pid: p.id, label: p.label, dx: p.dx, alias: p.alias, precaution: p.precaution });
 const fixedAt = (wd, only) => activePatients().filter((p) => !only || p.id === only)
   .flatMap((p) => p.slots.filter((x) => x.wd === wd).map((x) => ({ p, time: x.time })))
@@ -978,7 +1000,7 @@ const hasEval = (s) => s.tools.some((t) => t.score !== "" || t.note?.trim()) || 
 const hasLog = (s) => { const l = s.log; return !!(l.fees.length || l.minutes || l.items.length || l.assist || l.response.length || l.note.trim() || hasSwal(l.swal) || hasPt(l.pt) || hasEval(s) || l.acts?.length); };
 /** 진행 중인 작업이 없을 때 세션의 상태를 데이터로부터 다시 정한다. "처리 중"에 멈추는 일을 막는다. */
 function settle(s) {
-  s.waitUntil = 0;
+  s.waitUntil = 0; s.role ||= role(); // 어떤 직무로 기록했는지 남긴다 (직무를 바꿔 쓰는 치료사용)
   if (s.status === "absent") return;
   s.status = s.finalized ? "final"
     : s.rec?.questions?.length ? "questions"
@@ -1180,6 +1202,7 @@ function sectionText(s, k) {
 // 소스의 기본값은 개인판이다. 병원판 빌드가 아래 줄을 "hospital"로 바꾸고, 개인판 빌드는 서버 주소·키를 지운다.
 const EDITION = new URLSearchParams(location.search).get("edition") === "hospital" ? "hospital" : "personal";
 const PERSONAL = EDITION === "personal";
+if (!PERSONAL) document.querySelectorAll("img.logo").forEach((im) => { im.src = "./design/logo-ai.png"; }); // AI Rehab노트는 선글라스 로고
 document.documentElement.classList.toggle("personal", PERSONAL);
 if (!PERSONAL) { document.title = "AI Rehab노트"; document.querySelectorAll(".brand").forEach((b) => b.childNodes.forEach((n) => { if (n.nodeType === 3 && n.textContent.trim() === "Rehab노트") n.textContent = "AI Rehab노트"; })); }
 const RELAY_URL = "https://orlabcbhnarulribebvy.supabase.co/functions/v1/ai";
@@ -1487,7 +1510,8 @@ const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const icon = (id, size) => `<svg class="icon"${size ? ` style="width:${size}px;height:${size}px"` : ""}><use href="#i-${id}"/></svg>`;
 function toast(msg) {
   const el = $("#toast"); el.textContent = msg; el.style.display = "block";
-  clearTimeout(toast.t); toast.t = setTimeout(() => (el.style.display = "none"), 3200);
+  try { el.showPopover?.(); } catch { /* 이미 열려 있음 */ }
+  clearTimeout(toast.t); toast.t = setTimeout(() => { el.style.display = "none"; try { el.hidePopover?.(); } catch { /* 이미 닫힘 */ } }, 3200);
 }
 
 const STATUS = {
@@ -1641,7 +1665,7 @@ function renderSummary() {
   $("#stDone").textContent = done; $("#stQ").textContent = qs; $("#stTodo").textContent = todo;
   $("#todayCount").textContent = used.length ? `기록 ${done}/${used.length}${todo ? "" : " ✓"}` : "";
   const badge = $("#tabBadge"); badge.hidden = !qs; badge.textContent = qs;
-  $("#roleChip").textContent = ROLE[role()].short;
+  $("#roleChip").textContent = `${ROLE[role()].short} ▾`;
   const d = new Date(currentDay + "T00:00");
   $("#dateLabel").textContent = d.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
   document.body.classList.toggle("kid", isCenter()); // 아동발달센터는 조금 더 귀여운 화면
@@ -1697,7 +1721,7 @@ function renderToday() {
       <div class="slot-time">${esc(s.time)}</div>
       <div class="slot-card ${s.status === "empty" && !s.label ? "empty" : ""} ${s.status === "absent" ? "absent" : ""} ${isNow ? "now" : ""}" data-open="${s.id}">
         <div class="avatar">${esc(s.label?.slice(0, 2) || "+")}</div>
-        <div class="slot-main"><div class="slot-name">${esc(slotName(s))}${s.alias ? ` <span class="alias">${esc(s.alias)}</span>` : ""}${s.kind && s.kind !== "정규" ? ` <span class="pill teal" style="padding:2px 7px">${s.kind}</span>` : ""}${s.status !== "absent" && sameTime(s) > 1 ? ` <span class="pill info" style="padding:2px 7px">같은 시간 ${sameTime(s)}명</span>` : ""}${!s.finalized && isDue(patientOf(s)) ? ' <span class="pill warn" style="padding:2px 7px">재평가</span>' : ""}${studentOn() && s.review ? ` <span class="pill ${REVIEW[s.review.status][1]}" style="padding:2px 7px">${REVIEW[s.review.status][0]}</span>` : ""}</div><div class="slot-sub">${esc(slotSub(s))}</div></div>
+        <div class="slot-main"><div class="slot-name">${esc(slotName(s))}${pname(s)}${s.alias ? ` <span class="alias">${esc(s.alias)}</span>` : ""}${s.kind && s.kind !== "정규" ? ` <span class="pill teal" style="padding:2px 7px">${s.kind}</span>` : ""}${s.role && s.role !== role() && ROLE[s.role] ? ` <span class="pill" style="padding:2px 7px">${esc(ROLE[s.role].short)}</span>` : ""}${s.status !== "absent" && sameTime(s) > 1 ? ` <span class="pill info" style="padding:2px 7px">같은 시간 ${sameTime(s)}명</span>` : ""}${!s.finalized && isDue(patientOf(s)) ? ' <span class="pill warn" style="padding:2px 7px">재평가</span>' : ""}${studentOn() && s.review ? ` <span class="pill ${REVIEW[s.review.status][1]}" style="padding:2px 7px">${REVIEW[s.review.status][0]}</span>` : ""}</div><div class="slot-sub">${esc(slotSub(s))}</div></div>
         ${label && !["empty", "final"].includes(s.status) ? `<span class="pill ${cls}">${s.status === "recording" ? '<span class="dot"></span>' : s.status === "busy" ? '<span class="spin" style="width:12px;height:12px;border-width:2px"></span>' : ""}${label}${q ? ` ${q}` : ""}</span>` : ""}
         ${s.status === "final" ? `<button class="start-btn" style="background:var(--primary);color:#fff" data-copyone="${s.id}" aria-label="기록 완료 · 복사">✓ 복사</button>` : ""}
         ${s.status === "empty" && s.label && currentDay >= today() ? `<button class="x-btn absent-btn" data-absent="${s.id}">결석</button>` : ""}
@@ -2000,7 +2024,7 @@ function renderReports() {
   const row = (p) => {
     const ev = evalDays(p);
     return `<div class="card rp-pt"><div class="row"><div class="avatar">${esc(p.label.slice(0, 2))}</div>
-        <div class="spacer"><b>${esc(p.label)}${who()}</b>${p.active ? "" : ` <span class="pill">${endWord()}</span>`}
+        <div class="spacer"><b>${esc(p.label)}${who()}</b>${pname(p)}${p.active ? "" : ` <span class="pill">${endWord()}</span>`}
           <div class="muted small">${esc([p.dx, ev.length ? `평가 ${ev.length}회 · 최근 ${md(ev.at(-1).day)}` : "평가 기록 없음"].filter(Boolean).join(" · "))}</div></div></div>
       <div class="rp-pt-btns">${CHARTS.map((t) => `<button class="chip ${reportDoneOf(p, t) ? "on" : ""}" data-rpopen="${p.id}" data-ct="${t}">${reportDoneOf(p, t) ? "✓ " : ""}${REPORT_WORD()[t]}</button>`).join("")}</div></div>`;
   };
@@ -2760,12 +2784,14 @@ function draftOf(p) {
   const groups = {};
   for (const x of p?.slots || []) (groups[x.time] ||= []).push(x.wd);
   const g = Object.entries(groups).sort().map(([time, wds]) => ({ time, wds: sortWd(wds) }));
-  return { id: p?.id || null, label: p?.label || "", dx: p?.dx || "", pay: p?.pay || PAY_TYPES[0], centerId: p?.centerId || "",
+  return { id: p?.id || null, label: p?.label || "", name: p?.name || "", dx: p?.dx || "", pay: p?.pay || PAY_TYPES[0], centerId: p?.centerId || "",
     groups: g.length ? g : [{ time: isCenter() ? "14:00" : "09:00", wds: isCenter() ? [] : [1, 2, 3, 4, 5] }] };
 }
 function editorHtml(d) {
   return `<div class="card week-edit">
     <input data-wf="label" value="${esc(d.label)}" placeholder="${who()} 표시 (예: A, 창가 B)" style="font-weight:800">
+    ${namesOn() ? `<input data-wf="name" value="${esc(d.name)}" placeholder="이름 (이 폰에서만 보여요)" maxlength="30" style="margin-top:8px">`
+      : instOrg()?.show_names ? `<p class="muted small" style="margin:8px 0 0">이름을 적으려면 설정에서 <b>앱 잠금</b>을 먼저 켜 주세요.</p>` : ""}
     <input data-wf="dx" value="${esc(d.dx)}" placeholder="진단명 (선택)" style="margin-top:8px">
     ${isCenter() ? `<p class="muted small" style="margin:10px 0 0">결제 유형</p><div class="chips" style="margin-top:6px;gap:6px">${PAY_TYPES.map((t) => `<button class="chip ${d.pay === t ? "on" : ""}" data-wpay="${t}" style="height:32px;padding:0 11px;font-size:13px">${t}</button>`).join("")}</div>
       ${centersList().length ? `<p class="muted small" style="margin:10px 0 0">근무 센터 (센터별 수당)</p><div class="chips" style="margin-top:6px;gap:6px">${centersList().map((c) => `<button class="chip ${d.centerId === c.id ? "on" : ""}" data-wcenter="${c.id}" style="height:32px;padding:0 11px;font-size:13px">${esc(c.name)}</button>`).join("")}</div>` : ""}` : ""}
@@ -2789,7 +2815,7 @@ function renderWeek() {
     const both = time && list.filter((x) => x.time === time).length > 1;
     return `<button class="pick-row" data-wp="${p.id}">${time ? `<b style="width:46px;flex:none">${esc(time)}</b>` : ""}
       <div class="avatar">${esc(p.label.slice(0, 2))}</div>
-      <div class="spacer"><div style="font-weight:700">${esc(p.label)}${who()}${p.alias ? ` <span class="alias">${esc(p.alias)}</span>` : ""}${both ? ' <span class="pill info" style="padding:2px 7px">같은 시간</span>' : ""}</div>
+      <div class="spacer"><div style="font-weight:700">${esc(p.label)}${who()}${pname(p)}${p.alias ? ` <span class="alias">${esc(p.alias)}</span>` : ""}${both ? ' <span class="pill info" style="padding:2px 7px">같은 시간</span>' : ""}</div>
       <div class="muted small">${esc([p.dx, weekSummary(p), isCenter() && p.pay, isCenter() && makeupOwed(p.id) ? `보강 ${makeupOwed(p.id)}회 남음` : ""].filter(Boolean).join(" · "))}</div></div></button>`;
   };
   const list = fixedAt(weekDay);
@@ -2820,6 +2846,7 @@ function savePatient(d) {
   if (activePatients().some((p) => p.label === label && p.id !== d.id)) { toast(`이미 ${josa(label + who(), "이", "가")} 있어요. 다른 표시를 써 주세요.`); return false; }
   let p = db.patients.find((x) => x.id === d.id);
   if (!p) { p = { id: uid(), alias: "", precaution: "", active: true, since: today(), ...instTag() }; db.patients.push(p); }
+  if (namesOn()) p.name = (d.name || "").trim(); else if (!instOrg()?.show_names) delete p.name;
   Object.assign(p, { label, dx: d.dx.trim(), slots: d.groups.flatMap((g) => g.wds.map((wd) => ({ wd, time: g.time }))), ...(isCenter() ? { pay: d.pay, centerId: d.centerId || "" } : {}) });
   propagate(p); syncFixed(p.id); save();
   return p;
@@ -3547,7 +3574,7 @@ function renderCard() {
     <div class="full-body">
       <div class="row" style="margin-top:6px">
         <div class="avatar" style="width:52px;height:52px;border-radius:16px;font-size:20px">${esc(p.label.slice(0, 2))}</div>
-        <div class="spacer"><div style="font-size:20px;font-weight:800;letter-spacing:-0.03em">${esc(p.label)}${who()} ${p.active ? `<span class="pill ok">${isCenter() ? "치료 중" : "재원"}</span>` : `<span class="pill">${endWord()}</span>`}</div>
+        <div class="spacer"><div style="font-size:20px;font-weight:800;letter-spacing:-0.03em">${esc(p.label)}${who()}${pname(p)} ${p.active ? `<span class="pill ok">${isCenter() ? "치료 중" : "재원"}</span>` : `<span class="pill">${endWord()}</span>`}</div>
           <div class="muted small">${esc([p.dx, `${md(p.since)} 등록`, `${done.length}회기 기록`, p.dischargedAt ? `${md(p.dischargedAt)} ${endWord()}` : weekSummary(p), isCenter() && p.pay].filter(Boolean).join(" · "))}</div></div>
       </div>
 
@@ -3811,7 +3838,7 @@ async function sbLogout() { const t = inst()?.session?.access; if (t) await sbFe
 async function loadOrg(orgId) {
   const me = inst().session.uid;
   const [m] = await sbUser(`/rest/v1/org_members?org_id=eq.${orgId}&user_id=eq.${me}&select=role,active`);
-  const [o] = await sbUser(`/rest/v1/organizations?id=eq.${orgId}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days`);
+  const [o] = await sbUser(`/rest/v1/organizations?id=eq.${orgId}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days,show_names`);
   return m?.active && o ? { ...o, role: m.role } : null;
 }
 async function enterOrg(orgId) {
@@ -3848,7 +3875,7 @@ function instCheck(force) {
       const [m] = await sbUser(`/rest/v1/org_members?org_id=eq.${i.org.id}&user_id=eq.${me}&select=role,active`);
       const [dv] = i.deviceRow ? await sbUser(`/rest/v1/devices?id=eq.${i.deviceRow}&select=revoked_at`) : [null];
       if (!m?.active || (i.deviceRow && (!dv || dv.revoked_at))) { wipeInst("기관에서 해지되어 이 폰의 기관 기록을 지웠어요"); return; }
-      const [o] = await sbUser(`/rest/v1/organizations?id=eq.${i.org.id}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days`);
+      const [o] = await sbUser(`/rest/v1/organizations?id=eq.${i.org.id}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days,show_names`);
       if (o) i.org = { ...o, role: m.role };
       if (i.deviceRow) await sbUser(`/rest/v1/devices?id=eq.${i.deviceRow}`, { method: "PATCH", body: { last_seen_at: new Date().toISOString() }, prefer: "return=minimal" });
       for (const p of db.patients) if (p.refSync) syncRef(p); // 오프라인 때 못 보낸 퇴원·재입원
@@ -3998,6 +4025,7 @@ function paintInst() {
   let h;
   if (!s) h = `${head(o ? "로그인 필요" : "시작 전", "off")}${step(1)}
     ${o ? `<p><b>${esc(o.name)}</b> · 로그인이 끝났어요. 다시 로그인하면 AI를 쓸 수 있어요.</p>`
+      : i?.pendingEmail ? `<p>✉ <b>${esc(i.pendingEmail)}</b>로 확인 메일을 보냈어요. 메일(스팸함도)의 링크를 누른 뒤 아래에서 <b>로그인</b>하세요.</p>`
       : `<p class="hint">기관 계약이 있는 치료사만 써요. 진료 기록은 서버로 가지 않고 이 폰에만 있고, 서버에는 소속과 ${who()}별 동의 기록만 남아요.</p>`}
     <input type="email" id="instEmail" placeholder="이메일" autocomplete="username" value="${esc(i?.email || "")}">
     <input type="password" id="instPw" placeholder="비밀번호 (8자 이상)" autocomplete="current-password" style="margin-top:8px">
@@ -4010,18 +4038,15 @@ function paintInst() {
     <input id="instName" placeholder="표시 이름 (예: 김OT) · 관리자에게만 보여요" maxlength="20">
     <input id="instCode" placeholder="초대 코드 10자리" maxlength="12" autocomplete="off" style="margin-top:8px;text-transform:uppercase">
     <button class="btn primary block" data-inst="join" style="margin-top:10px">초대 코드로 들어가기</button>
-    <details style="margin-top:14px"><summary>우리 기관이 처음이면 → 기관 새로 만들기 (관리자용)</summary>
-      <p class="hint" style="margin:8px 0 6px">만드는 사람이 대표 관리자가 되고, 동료들에게 초대 코드를 만들어 줄 수 있어요.</p>
-      <input id="instOrgName" placeholder="기관 이름 (예: ○○재활병원)" maxlength="80">
-      <div class="seg" id="instKind" style="margin-top:8px"><button class="on" data-kind="hospital">병원</button><button data-kind="center">발달센터</button></div>
-      <button class="btn primary block" data-inst="create" style="margin-top:10px">기관 만들기</button></details>
-    <button class="btn ghost" data-inst="logout" style="height:36px;padding:0;margin-top:8px;font-size:14px">로그아웃</button>`;
+    <p class="hint" style="margin:12px 0 0">관리자라면 첫 화면 오른쪽 위 <b>🔑 관리자 모드</b>에서 기관을 만들고 초대 코드를 만드세요.</p>
+    <button class="btn ghost" data-inst="signout" style="height:36px;padding:0;margin-top:8px;font-size:14px">로그아웃</button>`;
   else h = `${head("사용 중", "on")}${step(3)}
     <p><b>${esc(o.name)}</b> · ${ROLE_KO[o.role] || ""}<br><span class="hint">${esc(s.email)}</span></p>
     <p class="hint">AI ${o.ai_enabled ? (o.ai_basis === "per_patient_consent" ? `<b style="color:var(--ok)">켜짐</b> · 동의 기록이 있는 ${who()}만` : `<b style="color:var(--ok)">켜짐</b> · 기관 고지 기준`) : `<b style="color:var(--warn)">꺼짐</b> · 관리자가 기관 관리에서 켜야 해요`}${lockOn() ? "" : ` · <b style="color:var(--warn)">앱 잠금을 켜 주세요</b>`}</p>
-    <div class="row" style="gap:8px">${isInstAdmin() ? `<button class="btn primary" data-inst="admin" style="flex:1.4">기관 관리 (초대·AI)</button>` : ""}<button class="btn" data-inst="leave" style="flex:1;height:48px">이 폰에서 끄기</button></div>`;
+    <div class="row" style="gap:8px"><button class="btn" data-inst="signout" style="flex:1;height:48px">로그아웃</button><button class="btn" data-inst="leave" style="flex:1;height:48px">이 폰에서 끄기</button></div>
+    <p class="hint" style="margin:8px 0 0">로그아웃하면 기록은 폰에 남고 첫 화면으로 가요. ${isInstAdmin() ? "관리자 설정은 첫 화면 오른쪽 위 <b>🔑 관리자 모드</b>에서." : ""} "이 폰에서 끄기"는 기관 기록까지 지워요.</p>`;
   // 같은 id(instEmail 등)를 두 곳에 두면 $()가 엉키므로, 온보딩 화면이 보일 땐 거기에만, 아니면 설정에만 그린다
-  const onboarding = !$("#onboardInst").hidden;
+  const onboarding = !$("#onboardInst").hidden && $("#onboard").open;
   $("#instBox").innerHTML = onboarding ? "" : h;
   $("#obInstBox").innerHTML = onboarding ? h : "";
   $("#obStart").disabled = !(o && s); if (onboarding && o && s) $("#obStart").scrollIntoView({ block: "nearest" });
@@ -4043,14 +4068,20 @@ async function instAction(a) {
     i.email = email;
     if (a === "signup") {
       const r = await sbFetch("/auth/v1/signup", { method: "POST", body: { email, password: pw } });
-      if (!r?.access_token) { save(); paintInst(); toast("메일함의 가입 확인 링크를 누른 뒤 로그인해 주세요"); return; }
+      if (!r?.access_token) { i.pendingEmail = email; save(); paintInst(); toast("메일함의 가입 확인 링크를 누른 뒤 로그인해 주세요"); return; }
       keepSession(r);
     } else keepSession(await sbFetch("/auth/v1/token?grant_type=password", { method: "POST", body: { email, password: pw } }));
+    delete i.pendingEmail;
     if (i.org) await instCheck(true); // 다시 로그인: 같은 기관의 구성원인지 확인(아니면 기관 기록을 지운다)
     if (inst()) { paintInst(); toast("로그인했어요"); }
     return;
   }
   if (a === "logout") { await sbLogout(); delete db.settings.inst; save(); paintInst(); return; }
+  if (a === "signout") { // 세션만 끊고 기록·기관은 둔다 → 첫 화면(직무 선택·관리자 모드)으로
+    await sbLogout(); delete i.session; save(); paintInst();
+    if ($("#dlgSettings").open) $("#dlgSettings").close();
+    showRoleScreen(); toast("로그아웃했어요. 관리자 설정은 오른쪽 위 관리자 모드에서."); return;
+  }
   if (a === "join") {
     const code = $("#instCode").value.replace(/\s/g, "").toUpperCase();
     if (code.length < 8) throw new Error("초대 코드를 확인해 주세요");
@@ -4140,6 +4171,10 @@ function renderAdmin() {
           <button class="btn block" data-a="copyInvite">${icon("copy", 16)}코드 복사</button>` : ""}
         <button class="btn ${adminInvite ? "" : "primary"} block" data-a="invite" style="margin-top:8px">새 코드 만들기</button>
       </div>
+      <div class="card"><b>${who()} 이름 표시</b> <span class="muted small">폰 안에서만 · 전송·복사본엔 라벨만</span>
+        <div class="seg" style="margin:10px 0 6px">${[["on", "허용"], ["off", "끄기"]].map(([k, v]) => `<button class="${(o.show_names ? "on" : "off") === k ? "on" : ""}" data-names="${k}">${v}</button>`).join("")}</div>
+        <p class="muted small" style="margin:6px 0 0">허용하면 치료사가 ${who()} 카드에 이름을 적어 관리할 수 있어요. 이름은 그 폰 밖으로 나가지 않고(서버·AI·PC 받기함·복사한 기록·보고서는 라벨만) 앱 잠금을 켜야 적을 수 있어요. 병원 정보보호 규정에 맞춰 정하세요.</p>
+      </div>
       <div class="card"><b>AI 사용</b>
         <div class="seg" style="margin:10px 0 6px">${[["on", "켜기"], ["off", "끄기"]].map(([k, v]) => `<button class="${(o.ai_enabled ? "on" : "off") === k ? "on" : ""}" data-aion="${k}">${v}</button>`).join("")}</div>
         <div class="small muted" style="margin-top:8px">처리 근거</div>
@@ -4161,7 +4196,7 @@ function renderAdmin() {
 }
 $("#dlgAdmin").addEventListener("click", async (e) => {
   const b = e.target.closest("button"); const o = instOrg(); if (!b || !o) return;
-  if (b.dataset.a === "close") { $("#dlgAdmin").close(); return; }
+  if (b.dataset.a === "close") { $("#dlgAdmin").close(); if ($("#onboard").open && !$("#onboardAdmin").hidden) paintAdmin(); return; }
   if (b.dataset.arole) { adminRole = b.dataset.arole; adminInvite = null; renderAdmin(); return; }
   if (b.dataset.amulti !== undefined) { adminMulti = b.dataset.amulti === "1"; adminInvite = null; renderAdmin(); return; }
   if (b.dataset.a === "copyInvite") { copy(adminInvite.code, "초대 코드를 복사했어요", false); return; }
@@ -4175,8 +4210,8 @@ $("#dlgAdmin").addEventListener("click", async (e) => {
       const multi = adminRole === "therapist" && adminMulti;
       adminInvite = { code: await rpc("create_invite", { p_org: o.id, p_role: adminRole, p_max_uses: multi ? 20 : 1, p_days: multi ? 30 : 7 }), role: adminRole, multi }; await loadAdmin();
     }
-    if (b.dataset.aion || b.dataset.basis) {
-      const patch = b.dataset.aion ? { ai_enabled: b.dataset.aion === "on" } : { ai_basis: b.dataset.basis };
+    if (b.dataset.aion || b.dataset.basis || b.dataset.names) {
+      const patch = b.dataset.aion ? { ai_enabled: b.dataset.aion === "on" } : b.dataset.names ? { show_names: b.dataset.names === "on" } : { ai_basis: b.dataset.basis };
       if (!Object.entries(patch).every(([k, v]) => o[k] === v)) {
         const [row] = await sbUser(`/rest/v1/organizations?id=eq.${o.id}`, { method: "PATCH", body: patch, prefer: "return=representation" });
         if (!row) throw new Error("권한이 없어요");
@@ -4786,6 +4821,18 @@ function openSettings() {
 $("#btnSettings").onclick = openSettings;
 $("#setBig").onchange = (e) => { db.settings.bigText = e.target.checked; save(); document.documentElement.classList.toggle("big", e.target.checked); };
 $("#setRole").onclick = (e) => { const b = e.target.closest("button"); if (b) { draftRole = b.dataset.r; paintRole(); } };
+// 상단 직무 배지 → 직무 바꾸기 (감각통합·언어처럼 두 가지 하는 치료사용). 환자·일정은 그대로, 회기에 직무가 남는다.
+const ROLE_ORDER = ["OT", "PT", ...CENTER_ROLES];
+$("#roleChip").onclick = () => {
+  $("#roleGrid").innerHTML = ROLE_ORDER.filter((r) => ROLE[r]).map((r) => `<button class="chip ${r === role() ? "on" : ""}" data-role2="${r}" style="height:46px;padding:0 16px;font-size:15px">${esc(ROLE[r].name)}</button>`).join("");
+  $("#dlgRole").showModal();
+};
+$("#roleGrid").onclick = (e) => {
+  const b = e.target.closest("[data-role2]"); if (!b) return;
+  if (b.dataset.role2 !== role()) { db.settings.role = b.dataset.role2; regridUntouchedDays(); save(); renderAll(); toast(`${ROLE[role()].name}로 바꿨어요`); }
+  $("#dlgRole").close();
+};
+$("#dlgRole").addEventListener("click", (e) => { if (e.target === $("#dlgRole")) $("#dlgRole").close(); });
 $("#payChips").onclick = (e) => { const b = e.target.closest("button"); if (b) { draftPay = +b.dataset.pay; $("#payOther").value = ""; paintRole(); } };
 let draftCenters = [], draftStep = 30;
 function paintCenters() {
@@ -4821,21 +4868,91 @@ $("#onboard").addEventListener("click", (e) => {
   regridUntouchedDays();
   db.settings.joinedAt = db.settings.joinedAt || today();
   save();
-  if (!PERSONAL && !instOrg()) { showOnboardInst(); renderAll(); return; }
+  if (!PERSONAL && !(instOrg() && inst()?.session)) { showOnboardInst(); renderAll(); return; }
   $("#onboard").close(); renderAll();
   toast(`${ROLE[role()].name} 모드로 시작해요`);
 });
-/** 병원판 첫 화면: 기관 로그인·합류를 먼저. 기관이 생기면 "시작하기"가 켜진다 */
-function showOnboardInst() {
-  $("#onboard").querySelector(".full-body:not(#onboardInst)").hidden = true; $("#onboardInst").hidden = false;
-  paintInst(); if (!$("#onboard").open) $("#onboard").showModal();
+/** 첫 화면(직무 선택·기관 연결·관리자 모드) 사이를 오간다. 병원판은 기관으로만 쓰므로 기관이 없으면 기관 연결부터 */
+const OB_PANELS = ["#onboardRoles", "#onboardInst", "#onboardAdmin"];
+function showOb(id) {
+  for (const x of OB_PANELS) $(x).hidden = x !== id;
+  $("#btnAdminMode").hidden = PERSONAL;
+  if (id === "#onboardInst") paintInst(); if (id === "#onboardAdmin") paintAdmin();
+  if (!$("#onboard").open) $("#onboard").showModal();
 }
+function showOnboardInst() { showOb("#onboardInst"); }
+function showRoleScreen() { showOb("#onboardRoles"); }
 function endOnboardInst() {
-  $("#onboardInst").hidden = true; $("#onboard").querySelector(".full-body:not(#onboardInst)").hidden = false;
-  if ($("#onboard").open) $("#onboard").close(); paintInst(); renderAll();
+  if ($("#onboard").open) $("#onboard").close(); showOb("#onboardRoles"); $("#onboard").close(); paintInst(); renderAll();
 }
 $("#obStart").onclick = () => { endOnboardInst(); toast(`${instOrg()?.name || ""} · ${ROLE[role()].name} 모드로 시작해요`); };
 $("#obLater").onclick = () => { db.settings.instSkipDay = today(); save(); endOnboardInst(); toast("설정 맨 위 '기관판'에서 언제든 연결할 수 있어요"); };
+$("#obBack").onclick = () => showRoleScreen();
+$("#admBack").onclick = () => showRoleScreen();
+$("#btnAdminMode").onclick = () => showOb("#onboardAdmin");
+
+// ---------- 관리자 모드 (첫 화면 오른쪽 위) ----------
+// 같은 계정으로 들어간다. 기관 만들기·기관 관리(초대·AI·이름 표시·구성원)는 여기서만, 치료 기록은 치료사 모드에서.
+function paintAdmin() {
+  const i = inst(), o = i?.org, s = i?.session;
+  const head = (pill, cls) => `<div class="inst-head"><div class="ico">🔑</div><div class="spacer"><b>관리자 모드</b><div class="sub">기관 만들기 · 초대 코드 · AI · 이름 표시 · 구성원</div></div><span class="pill ${cls}">${pill}</span></div>`;
+  let h;
+  if (!s) h = `${head("로그인 필요", "off")}
+    ${i?.pendingEmail ? `<p>✉ <b>${esc(i.pendingEmail)}</b>로 확인 메일을 보냈어요. 메일의 링크를 누른 뒤 아래에서 로그인하세요.</p>` : `<p class="hint">관리자 계정으로 로그인하세요. 처음이면 가입한 뒤 기관을 만들면 그 계정이 대표 관리자가 돼요.</p>`}
+    <input type="email" id="admEmail" placeholder="이메일" autocomplete="username" value="${esc(i?.email || "")}">
+    <input type="password" id="admPw" placeholder="비밀번호 (8자 이상)" autocomplete="current-password" style="margin-top:8px">
+    <div class="row" style="gap:8px;margin-top:10px"><button class="btn" data-adm="signup" style="flex:1;height:48px">처음이면 가입</button><button class="btn primary" data-adm="login" style="flex:1.4">로그인</button></div>`;
+  else if (!o) h = `${head("기관 없음", "wait")}
+    <p><b>${esc(s.email)}</b>로 로그인했어요. 우리 기관을 만드세요. 만드는 계정이 대표 관리자가 돼요.</p>
+    <input id="admOrgName" placeholder="기관 이름 (예: ○○재활병원)" maxlength="80">
+    <div class="seg" id="admKind" style="margin-top:8px"><button class="on" data-kind="hospital">병원</button><button data-kind="center">발달센터</button></div>
+    <button class="btn primary block" data-adm="create" style="margin-top:10px">기관 만들기</button>
+    <p class="hint" style="margin:10px 0 0">이미 있는 기관의 관리자라면, 대표 관리자에게 <b>관리자용 초대 코드</b>를 받아 치료사 모드에서 넣으세요.</p>
+    <button class="btn ghost block" data-adm="logout" style="height:36px;margin-top:8px;font-size:14px">로그아웃</button>`;
+  else if (!isInstAdmin()) h = `${head("권한 없음", "off")}
+    <p><b>${esc(o.name)}</b> · ${ROLE_KO[o.role] || ""} · ${esc(s.email)}</p>
+    <p class="hint">이 계정은 치료사예요. 관리자 기능은 대표 관리자가 <b>관리자용 초대 코드</b>로 권한을 줘야 쓸 수 있어요.</p>
+    <button class="btn ghost block" data-adm="logout" style="height:36px;margin-top:8px;font-size:14px">로그아웃</button>`;
+  else h = `${head(ROLE_KO[o.role] || "관리자", "on")}
+    <p><b>${esc(o.name)}</b><br><span class="hint">${esc(s.email)}</span></p>
+    <p class="hint">AI ${o.ai_enabled ? `<b style="color:var(--ok)">켜짐</b>` : `<b style="color:var(--warn)">꺼짐</b>`} · 이름 표시 ${o.show_names ? `<b style="color:var(--ok)">허용</b>` : "꺼짐"}</p>
+    <button class="btn primary block" data-adm="open">기관 관리 열기 (초대 코드 · AI · 이름 표시 · 구성원)</button>
+    <button class="btn ghost block" data-adm="logout" style="height:36px;margin-top:8px;font-size:14px">로그아웃</button>`;
+  $("#adminBox").innerHTML = h;
+}
+async function adminAction(a) {
+  const i = (db.settings.inst ||= {});
+  if (a === "login" || a === "signup") {
+    const email = $("#admEmail").value.trim(), pw = $("#admPw").value;
+    if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("이메일을 확인해 주세요");
+    if (pw.length < 8) throw new Error("비밀번호는 8자 이상으로 해 주세요");
+    i.email = email;
+    if (a === "signup") {
+      const r = await sbFetch("/auth/v1/signup", { method: "POST", body: { email, password: pw } });
+      if (!r?.access_token) { i.pendingEmail = email; save(); paintAdmin(); toast("메일함의 가입 확인 링크를 누른 뒤 로그인해 주세요"); return; }
+      keepSession(r);
+    } else keepSession(await sbFetch("/auth/v1/token?grant_type=password", { method: "POST", body: { email, password: pw } }));
+    delete i.pendingEmail;
+    if (i.org) await instCheck(true);
+    save(); paintAdmin(); toast("로그인했어요"); return;
+  }
+  if (a === "create") {
+    const name = $("#admOrgName").value.trim(); if (!name) throw new Error("기관 이름을 넣어 주세요");
+    const org = await rpc("create_organization", { p_name: name, p_kind: $("#admKind .on").dataset.kind });
+    await enterOrg(org); paintAdmin(); toast(`${name}을(를) 만들었어요. 이제 초대 코드를 만들어 동료에게 주세요.`); return;
+  }
+  if (a === "open") { openAdmin(); return; }
+  if (a === "logout") { await sbLogout(); delete i.session; save(); paintAdmin(); paintInst(); toast("로그아웃했어요"); return; }
+}
+let admBusy = false;
+$("#adminBox").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b || admBusy) return;
+  if (b.dataset.kind) { $("#admKind").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); return; }
+  const a = b.dataset.adm; if (!a) return;
+  admBusy = true; b.disabled = true;
+  try { await adminAction(a); } catch (err) { toast(err.message); }
+  admBusy = false; if (document.contains(b)) b.disabled = false;
+});
 
 // 휴대폰의 뒤로가기: 앱을 바로 끄지 않고 한 단계씩 앞 화면으로 돌아간다.
 // 열린 창 → 세션의 첫 탭 → 세션 닫기 → 오늘 탭 → "한 번 더 누르면 종료" 순서. 앱이 끝내도 될 때만 "exit"를 돌려준다.
@@ -4872,8 +4989,8 @@ function leaveSplash() {
   clearTimeout(splashTimer);
   if ($("#splash").hidden) return;
   $("#splash").hidden = true;
-  if (!db.settings.role) { $("#onboard").showModal(); return; }
-  if (!PERSONAL && !instOrg() && db.settings.instSkipDay !== today()) { showOnboardInst(); return; }
+  if (!db.settings.role) { showRoleScreen(); return; }
+  if (!PERSONAL && !(instOrg() && inst()?.session) && db.settings.instSkipDay !== today()) { showOnboardInst(); return; }
   if (lockOn()) showLock("unlock");
   // 기록이 쌓였는데 2주 넘게 백업하지 않았으면 하루 한 번 알려 준다
   const finals = Object.values(db.days).reduce((n, d) => n + d.sessions.filter((s) => s.finalized).length, 0);

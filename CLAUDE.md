@@ -34,7 +34,7 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 ```
 
 - 설치는 항상 `--user 0` (듀얼 앱 프로필 user 95에 깔리면 권한·데이터가 따로라 혼란).
-- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 25 / 0.25). UTF-8(BOM 없음)로 저장.
+- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 26 / 0.26). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
 ## 친구 테스트 배포 (2026-10 결정: 병원판만 테스트)
@@ -130,6 +130,15 @@ git tag v0.23; git push origin v0.23
 - 설정에서 기관판·PC 받기함은 `.inst-card`(초록 테두리 카드, 본문 글자, 상태 표시, ①②③ 단계)로 **맨 위**에 둔다. 사용자 지적: "설정에 숨겨진 기능처럼 보이면 안 된다".
 - 수가 흐름: **수가 누르고 → 시간 누르면 치료 하나**(`log.feeMin[수가id]=분`), 다음 수가를 누르면 새 치료가 이어진다. 마지막에 누른 수가가 활성(`s.feeActive`), 치료 목록(`.fee-item`)을 누르면 그 수가로 활성이 바뀐다. `log.minutes`는 합계(통계·기존 호환). 산정 기준 검사는 수가별 시간으로. 센터(활동 기반)는 예전 방식.
 - 말로 남기기 안내: "천천히, 또박또박" 문구를 메모·보고서 받아쓰기 아래에 둔다.
+
+## 관리자 모드·직무 전환·이름 표시 (0.26)
+
+- **관리자 모드**: 첫 화면(직무 선택) 오른쪽 위 🔑 버튼 → `#onboardAdmin`(`paintAdmin`/`adminAction`). 같은 계정으로 로그인해 기관 만들기 → "기관 관리 열기"(`#dlgAdmin`: 초대 코드·AI·이름 표시·구성원·기록). 관리자도 치료는 치료사 모드로(직무 고르고 기관 연결). 설정의 기관판 카드에서 "기관 관리" 버튼은 뺐다.
+- **로그아웃**(`signout`): 세션만 끊고 기록·기관은 둔 채 첫 화면으로 → 관리자 모드로 갈 수 있다. "이 폰에서 끄기"(`leave`)는 기관 기록까지 삭제. 관리자 모드에도 로그아웃.
+- 가입 뒤 확인 메일 대기: `inst.pendingEmail`을 카드 안 글로 보여 준다. 토스트는 `popover="manual"`로 전체화면 dialog 위에도 뜬다.
+- **직무 전환**: 상단 배지(`#roleChip`) → `#dlgRole`. 회기는 기록할 때 `s.role`을 남기고, 현재 직무와 다르면 슬롯 카드에 짧은 배지. 환자·일정은 공유.
+- **이름 표시**: `organizations.show_names`(관리자 토글, 기본 꺼짐). `namesOn()` = 기관 허용 + 앱 잠금 켜짐일 때만 환자 카드에 `p.name` 입력·표시(`pname()`), 기록 글·AI·PC·복사본에는 절대 넣지 않는다(`slotName`·`sessionText`는 라벨만). 방침 1절 반영.
+- 병원판 로고는 선글라스 판 `design/logo-ai.png`(런처 아이콘에서 잘라 만듦; 시작 화면 그림 `startpage.png`는 사용자 파일이라 그대로 — 선글라스 판은 사용자가 주면 교체).
 
 ## 보고서 기능 (핵심)
 
