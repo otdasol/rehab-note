@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>이메일 확인 완료 · AI Rehab노트</title>
+<style>
+  body { margin: 0; background: #F7F9F9; color: #15282C; font: 17px/1.6 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  main { max-width: 420px; margin: 0 auto; padding: 56px 24px; text-align: center; }
+  img { width: 72px; height: 72px; border-radius: 18px; }
+  h1 { font-size: 24px; margin: 18px 0 8px; letter-spacing: -0.03em; }
+  p { margin: 0 0 12px; color: #3B4D52; }
+  .box { background: #fff; border: 1.5px solid #0E7C7B; border-radius: 16px; padding: 18px; margin-top: 20px; text-align: left; }
+  .box b { color: #0E7C7B; }
+  .err { display: none; color: #C2660A; }
+</style>
+</head>
+<body>
+<main>
+  <img src="design/logo-ai.png" alt="">
+  <h1 id="t">✅ 이메일 확인 완료</h1>
+  <p id="m">이제 <b>AI Rehab노트 앱으로 돌아가</b> 같은 이메일·비밀번호로 <b>로그인</b>을 누르세요.</p>
+  <p class="err" id="e">링크가 만료됐거나 이미 사용됐어요. 앱에서 로그인을 눌러 보세요 — 이미 확인된 계정이면 그대로 들어가져요.</p>
+  <div class="box"><b>다음 순서</b><br>① 앱으로 돌아가기 → ② 로그인 → ③ 초대 코드 입력(치료사) 또는 기관 만들기(관리자)</div>
+  <p style="margin-top:20px;font-size:13.5px;color:#6E7F84">이 창은 닫아도 돼요.</p>
+</main>
+<script>
+  // 확인 실패로 돌아온 경우(#error_code=... 또는 ?error=...)
+  const q = location.hash.slice(1) + "&" + location.search.slice(1);
+  if (/error/.test(q)) { document.getElementById("t").textContent = "⚠️ 링크를 확인하지 못했어요"; document.getElementById("m").style.display = "none"; document.getElementById("e").style.display = "block"; }
+</script>
+</body>
+</html>

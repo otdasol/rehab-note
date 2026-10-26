@@ -3773,7 +3773,8 @@ $("#dlgGroup").addEventListener("close", () => { group = null; });
 // 기관이 '환자별 동의'를 고르면 동의 기록이 있는 환자에게만 AI를 쓰고, AI 중계 서버도 같은 것을 다시 확인한다.
 const SB_URL = "https://orlabcbhnarulribebvy.supabase.co";
 const NOTICE_VER = "v1";
-const PC_PAGE = "otdasol.github.io/rehab-note/pc"; // PC 받기함 주소 (pc.html). 정식 도메인 정하면 바꾼다
+const PC_PAGE = "otdasol.github.io/rehab-note/pc";
+const CONFIRM_PAGE = "https://otdasol.github.io/rehab-note/confirmed"; // 가입 확인 링크를 누른 뒤 보이는 안내 페이지 (Supabase 허용 주소에 등록해야 적용) // PC 받기함 주소 (pc.html). 정식 도메인 정하면 바꾼다
 const JOBS = ["OT", "PT", "SI", "SLP", "PLAY", "ART", "COG"];
 const ROLE_KO = { owner: "대표 관리자", admin: "관리자", therapist: "치료사" };
 const METHODS = { admission_form: "입원 동의서", app_signature: "앱 화면 동의", verbal_recorded: "구두 동의" };
@@ -4067,8 +4068,9 @@ async function instAction(a) {
     if (pw.length < 8) throw new Error("비밀번호는 8자 이상으로 해 주세요");
     i.email = email;
     if (a === "signup") {
-      const r = await sbFetch("/auth/v1/signup", { method: "POST", body: { email, password: pw } });
-      if (!r?.access_token) { i.pendingEmail = email; save(); paintInst(); toast("메일함의 가입 확인 링크를 누른 뒤 로그인해 주세요"); return; }
+      const r = await sbFetch(`/auth/v1/signup?redirect_to=${encodeURIComponent(CONFIRM_PAGE)}`, { method: "POST", body: { email, password: pw } });
+      if (r?.identities && !r.identities.length) throw new Error("이미 가입된 이메일이에요. 같은 비밀번호로 '로그인'을 눌러 주세요"); // 서버는 보안상 기존 계정을 가입 성공처럼 답한다
+      if (!r?.access_token) { i.pendingEmail = email; save(); paintInst(); toast("메일함(스팸함도)의 확인 링크를 누른 뒤 로그인해 주세요"); return; }
       keepSession(r);
     } else keepSession(await sbFetch("/auth/v1/token?grant_type=password", { method: "POST", body: { email, password: pw } }));
     delete i.pendingEmail;
@@ -4928,8 +4930,9 @@ async function adminAction(a) {
     if (pw.length < 8) throw new Error("비밀번호는 8자 이상으로 해 주세요");
     i.email = email;
     if (a === "signup") {
-      const r = await sbFetch("/auth/v1/signup", { method: "POST", body: { email, password: pw } });
-      if (!r?.access_token) { i.pendingEmail = email; save(); paintAdmin(); toast("메일함의 가입 확인 링크를 누른 뒤 로그인해 주세요"); return; }
+      const r = await sbFetch(`/auth/v1/signup?redirect_to=${encodeURIComponent(CONFIRM_PAGE)}`, { method: "POST", body: { email, password: pw } });
+      if (r?.identities && !r.identities.length) throw new Error("이미 가입된 이메일이에요. 같은 비밀번호로 '로그인'을 눌러 주세요");
+      if (!r?.access_token) { i.pendingEmail = email; save(); paintAdmin(); toast("메일함(스팸함도)의 확인 링크를 누른 뒤 로그인해 주세요"); return; }
       keepSession(r);
     } else keepSession(await sbFetch("/auth/v1/token?grant_type=password", { method: "POST", body: { email, password: pw } }));
     delete i.pendingEmail;

@@ -54,6 +54,7 @@ jobs:
           EOF
           cp privacy.html _site/
           cp web/pc.html _site/pc.html   # PC 받기함 (https://otdasol.github.io/rehab-note/pc)
+          cp web/confirmed.html _site/confirmed.html   # 가입 확인 뒤 안내 (Supabase 리디렉션 주소)
           cp design/splash.webp design/logo.png design/logo-ai.png design/mascot.webp design/mascot-desk.webp _site/design/
           # 홈 화면 아이콘(180px)은 병원판 런처 아이콘(선글라스)에서 만든다.
           python3 -m pip install --quiet pillow
