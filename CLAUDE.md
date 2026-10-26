@@ -34,7 +34,7 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 ```
 
 - 설치는 항상 `--user 0` (듀얼 앱 프로필 user 95에 깔리면 권한·데이터가 따로라 혼란).
-- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 23 / 0.23). UTF-8(BOM 없음)로 저장.
+- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 24 / 0.24). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
 ## 친구 테스트 배포 (2026-10 결정: 병원판만 테스트)
@@ -96,6 +96,20 @@ git tag v0.23; git push origin v0.23
 - 사용자 개인 파일은 건드리지 않는다(`design/icon.png`, `design/startpage.png`만 예외).
 - 출처를 지어내지 않는다. 법적 판단은 법률 검토를 권한다.
 - 운영자 이름·연락처는 비공개 테스트 이후 정한다(지금은 자리표시). 방침 URL·수가 코드도 그때.
+
+## 국내 처리 전환 (2026-10-26 결정: 판매 전 AI 처리를 국내로)
+
+- Supabase(DB·edge function)는 이미 서울 리전. 국외로 가는 건 AI 호출뿐.
+- edge function에 `AI_PROVIDER=bedrock` 경로를 넣어 둠(`askJsonBedrock`): AWS Bedrock 서울(ap-northeast-2)에서 Claude를 돌리고, 구조화 출력 대신 도구 호출 강제로 같은 스키마를 받는다. 비밀값 `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`(+선택 `BEDROCK_MODEL_*`)가 들어오고 `AI_PROVIDER=bedrock`을 켜면 전환. 서울엔 Sonnet 5·Opus 5만 있어 cheap 몫도 Sonnet 5. **아직 실제 호출 테스트 전** — 키 들어오면 먼저 workflow 없이 한 번 호출해 모델 ID·도구 호출이 되는지 확인할 것.
+- 음성 받아쓰기(OpenAI, 미국)는 아직 그대로. 후보: AWS Transcribe 서울(S3 경유, 약 1일 작업) 또는 네이버 클로바 스피치. 사용자 결정 대기.
+- 사용자 판단: 대학병원처럼 망분리·깐깐한 곳은 초기 고객에서 제외. 재활병원·요양병원·의원 우선.
+
+## PC 받기함 (0.24, 카카오톡 PC판 방식)
+
+- 문제: 폰에 쓴 기록을 병원 PC 전자차트에 넣으려면 다시 쳐야 했다. 해결: PC 브라우저에서 `web/pc.html`(배포 주소 `otdasol.github.io/rehab-note/pc`)을 열면 12자 코드가 뜨고, 폰 설정 › 기관판 › PC 받기함에 넣으면 이후 **폰에서 복사할 때마다** 같은 글이 PC 화면에 뜬다(`copy()`가 `pcSend()`를 같이 부름, 초대 코드 복사는 제외).
+- 보안: 코드에서 양쪽이 PBKDF2(20만 회)로 AES-GCM 키와 pair_id(SHA-256 앞 16바이트)를 각자 유도. 서버 `pc_relay` 표에는 암호문만, PC가 받으면 삭제·늦어도 10분 뒤 cron 삭제. anon은 읽기·삭제만, 쓰기는 로그인 사용자만(마이그레이션 `pc_relay`, `pc_relay_insert_policy`). 방침 2절에 한 줄 추가함.
+- PC 페이지는 받은 글을 메모리에만 둔다("이 PC 기억하기"는 코드만 localStorage). 망분리 병원에서는 안 된다(알고 있는 한계).
+- 카메라·QR은 아직 없다(안드로이드 WebView 카메라 권한 작업이 필요해 코드 입력만). 병원판 전용.
 
 ## 기관판 진행 상황
 

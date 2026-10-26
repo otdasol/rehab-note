@@ -10,6 +10,7 @@ on:
       - ot-note.html
       - privacy.html
       - design/**
+      - web/**
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -51,6 +52,7 @@ jobs:
           open("_site/index.html", "w", encoding="utf-8").write("\n".join(out))
           EOF
           cp privacy.html _site/
+          cp web/pc.html _site/pc.html   # PC 받기함 (https://otdasol.github.io/rehab-note/pc)
           cp design/splash.webp design/logo.png design/mascot.webp design/mascot-desk.webp _site/design/
           # 홈 화면 아이콘(180px)은 design/icon.png에서 만든다. 원본은 건드리지 않는다.
           python3 -m pip install --quiet pillow

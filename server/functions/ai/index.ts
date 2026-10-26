@@ -3,7 +3,20 @@
 // 키는 이 서버에만 있고, 요청·응답 내용은 저장하거나 로그로 남기지 않는다. 기기별 하루 사용 횟수만 센다.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Anthropic from "npm:@anthropic-ai/sdk@1.1.0";
+import { AnthropicBedrock } from "npm:@anthropic-ai/bedrock-sdk@1.1.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+
+// ---------- AI 처리 위치 ----------
+// AI_PROVIDER=bedrock 이면 같은 Claude 모델을 AWS Bedrock 서울 리전(ap-northeast-2)에서 돌린다 → 글이 국내를 벗어나지 않는다.
+// 비밀값: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, (선택) BEDROCK_MODEL_THINK/WRITE/CHEAP. 기본은 Anthropic 직접 호출(미국).
+const AI_PROVIDER = Deno.env.get("AI_PROVIDER") === "bedrock" ? "bedrock" : "anthropic";
+const BEDROCK_REGION = Deno.env.get("AWS_REGION") || "ap-northeast-2";
+// 서울 리전에 있는 모델 ID (2026-10 기준 Sonnet 5·Opus 5만 있어 Haiku 몫도 Sonnet 5가 맡는다). 바뀌면 비밀값으로 덮어쓴다.
+const BEDROCK_MODEL = {
+  think: Deno.env.get("BEDROCK_MODEL_THINK") || "anthropic.claude-sonnet-5-v1:0",
+  write: Deno.env.get("BEDROCK_MODEL_WRITE") || "anthropic.claude-sonnet-5-v1:0",
+  cheap: Deno.env.get("BEDROCK_MODEL_CHEAP") || "anthropic.claude-sonnet-5-v1:0",
+};
 
 const LIMITS = { soap: 80, stt: 120, record: 150, ideas: 60, summary: 30, review: 60, report: 30 }; // 기기 하나가 하루에 쓸 수 있는 횟수
 const MAX_TEXT = 30_000;
@@ -191,7 +204,27 @@ const RECORD_SCHEMA = {
 // - write: 매 회기 기록·SOAP처럼 정해진 형식으로 옮겨 쓰기 → Sonnet 5.5, effort low ($2/$10)
 // - think: 보고서 전문가 초안·중재 추천·슈퍼비전처럼 임상 추론이 필요한 것 → Sonnet 5.5, effort medium
 type Tier = "cheap" | "write" | "think";
+// Bedrock 경로: 구조화 출력(output_config)·effort 대신 도구 호출을 강제해 같은 JSON 스키마로 받는다.
+async function askJsonBedrock(system: string, schema: unknown, text: string, tier: Tier) {
+  const ak = Deno.env.get("AWS_ACCESS_KEY_ID"), sk = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+  if (!ak || !sk) return json(503, { error: "not_configured" });
+  if (text.length > MAX_TEXT) return json(413, { error: "too_long" });
+  const client = new AnthropicBedrock({ awsAccessKey: ak, awsSecretKey: sk, awsRegion: BEDROCK_REGION });
+  const res = await client.messages.create({
+    model: BEDROCK_MODEL[tier],
+    max_tokens: 16000,
+    system,
+    tools: [{ name: "out", description: "정리한 결과를 이 형식으로 돌려줍니다.", input_schema: schema as Anthropic.Tool["input_schema"] }],
+    tool_choice: { type: "tool", name: "out" },
+    messages: [{ role: "user", content: text }],
+  });
+  if (res.stop_reason === "max_tokens") return json(502, { error: "truncated" });
+  const call = res.content.find((b) => b.type === "tool_use") as { input?: unknown } | undefined;
+  if (!call?.input) return json(502, { error: "upstream" });
+  return json(200, call.input);
+}
 async function askJson(system: string, schema: unknown, text: string, tier: Tier = "write") {
+  if (AI_PROVIDER === "bedrock") return askJsonBedrock(system, schema, text, tier);
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json(503, { error: "not_configured" });
   if (text.length > MAX_TEXT) return json(413, { error: "too_long" });

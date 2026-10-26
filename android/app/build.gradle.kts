@@ -18,8 +18,8 @@ android {
     defaultConfig {
         minSdk = 28
         targetSdk = 35
-        versionCode = 23
-        versionName = "0.23"
+        versionCode = 24
+        versionName = "0.24"
     }
 
     // 앱 두 개: 개인판(Rehab노트)은 인터넷·마이크 권한이 없고 AI가 전혀 없다.

@@ -23,3 +23,5 @@ select version, name, statements from supabase_migrations.schema_migrations orde
 새 마이그레이션을 적용하면 이 표에도 한 줄 추가한다.
 | 20261026 | invite_multi_use | `invites.max_uses`(1~50)·`use_count`. `create_invite(p_org, p_role, p_max_uses=1, p_days=7)`: 관리자 초대는 1명만. `accept_invite`는 횟수 안에서 여러 명 허용, 이미 활동 중인 구성원은 횟수 안 깎음. 앱의 "여러 명 · 30일"은 20명·30일 |
 | 20261026 | invite_drop_old_signature | 옛 `create_invite(uuid, member_role)` 삭제 (rpc 모호성 방지) |
+| 20261026 | pc_relay | PC 받기함 중계 표 `pc_relay`(pair_id, ciphertext), anon 읽기·삭제/로그인 쓰기, realtime 발행, 5분마다 10분 지난 행 삭제(`purge_pc_relay`) |
+| 20261026 | pc_relay_insert_policy | 쓰기 정책을 `auth.uid() is not null`로 단순화 |
