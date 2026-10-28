@@ -558,7 +558,7 @@
     <div class="field">직무
       <div id="setRole">
         <p class="muted small" style="margin:4px 0 6px">병원</p>
-        <div class="seg" style="margin:0"><button data-r="OT">작업치료</button><button data-r="PT">물리치료</button></div>
+        <div class="seg" style="margin:0"><button data-r="OT">작업치료</button><button data-r="PT">물리치료</button><button data-r="SLPA">언어(성인)</button></div>
         <p class="muted small" style="margin:10px 0 6px">아동발달센터</p>
         <div class="chips"><button class="chip" data-r="SI">감각통합</button><button class="chip" data-r="SLP">언어</button><button class="chip" data-r="PLAY">놀이</button><button class="chip" data-r="ART">미술</button><button class="chip" data-r="COG">인지</button></div>
       </div>
@@ -2676,7 +2676,7 @@ $("#sheet").addEventListener("click", (e) => {
   }
   if (b.dataset.cat) { catGroup = b.dataset.cat; renderSheet(); return; }
   if (b.dataset.focus) { s.ideasFocus = b.dataset.focus; save(); renderSheet(); return; }
-  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.actcnt || b.dataset.actp || b.dataset.actlv || b.dataset.acttag || b.dataset.actphoto !== undefined || b.dataset.photodel !== undefined || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
+  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.actcnt || b.dataset.actp || b.dataset.actlv || b.dataset.acttag || b.dataset.actphoto !== undefined || b.dataset.photodel !== undefined || b.dataset.acttimer !== undefined || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
   if (b.dataset.pt) {
     const p = ptOf(s); const k = b.dataset.pt; const v = b.dataset.v;
     if (k === "stairs") p.stairs = !p.stairs;
@@ -4676,7 +4676,8 @@ function actsCard(s) {
     <div class="row" style="margin-top:8px"><input id="customAct" placeholder="목록에 없는 활동"><button class="btn" data-x="addAct" style="flex:none">추가</button></div>
     ${acts.map((a, i) => `<div class="act-row"><div class="row"><b class="spacer">${esc(a.name)}</b>
         <button class="muted" data-actdel="${i}" aria-label="빼기" style="font-size:20px;width:28px">×</button></div>
-      <div class="chips" style="margin-top:6px;gap:6px">${[5, 10, 15, 20, 30].map((m) => `<button class="chip ${String(a.min) === String(m) ? "on" : ""}" data-actmin="${i}" data-v="${m}" style="height:30px;padding:0 10px;font-size:13px">${m}분</button>`).join("")}</div>
+      <div class="chips" style="margin-top:6px;gap:6px">${[5, 10, 15, 20, 30].map((m) => `<button class="chip ${String(a.min) === String(m) ? "on" : ""}" data-actmin="${i}" data-v="${m}" style="height:30px;padding:0 10px;font-size:13px">${m}분</button>`).join("")}
+        ${actTimer?.sid === s.id && actTimer.i === i ? `<button class="chip on" data-acttimer="${i}" style="height:30px;padding:0 10px;font-size:13px">⏱ 멈춤 <span id="actTimerEl">${timerText()}</span></button>` : `<button class="chip" data-acttimer="${i}" style="height:30px;padding:0 10px;font-size:13px">⏱ 재기</button>`}</div>
       <div class="row act-count" style="margin-top:8px;gap:6px;align-items:center">
         <span class="small" style="font-weight:700;flex:none">정반응</span>
         <button class="chip" data-actcnt="${i}" data-k="ok" data-d="-1" aria-label="정반응 빼기">−</button><b class="act-num">${a.ok || 0}</b><button class="chip on" data-actcnt="${i}" data-k="ok" data-d="1" aria-label="정반응 더하기">+ 정반응</button>
@@ -4689,8 +4690,21 @@ function actsCard(s) {
     ${acts.length ? `<label class="field" style="margin:12px 0 0">보호자 안내 · 오늘 집에서 할 것 <input data-logf="parentNote" value="${esc(s.log.parentNote || "")}" placeholder="예: 그네 대신 담요 흔들기 5분, 숟가락은 손 위에 손"></label>` : ""}
   </div>`;
 }
+// 활동 시간 재기: 하나만 돌고, 멈추면 분으로 반올림해 활동 시간에 넣는다 (폰 메모리에만)
+let actTimer = null; // { sid, i, startedAt, tick }
+const timerText = () => { const sec = Math.floor((Date.now() - (actTimer?.startedAt || Date.now())) / 1000); return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`; };
+function stopActTimer(apply) {
+  const t = actTimer; if (!t) return; clearInterval(t.tick); actTimer = null;
+  if (apply) { const s = findSession(t.sid); const a = s?.log.acts?.[t.i]; if (a) { a.min = Math.max(1, Math.round((Date.now() - t.startedAt) / 60000)); if (!s.finalized && s.status !== "busy") settle(s); save(); } }
+}
 function onActClick(s, b) {
   const l = s.log; l.acts ||= [];
+  if (b.dataset.acttimer !== undefined) {
+    const i = +b.dataset.acttimer;
+    if (actTimer?.sid === s.id && actTimer.i === i) { stopActTimer(true); toast(`${l.acts[i].name} ${l.acts[i].min}분으로 넣었어요`); }
+    else { stopActTimer(true); actTimer = { sid: s.id, i, startedAt: Date.now(), tick: setInterval(() => { const el = $("#actTimerEl"); if (el) el.textContent = timerText(); }, 1000) }; }
+    renderSheet(); return;
+  }
   if (b.dataset.kind) s.kind = b.dataset.kind;
   if (b.dataset.act) {
     const i = l.acts.findIndex((a) => a.name === b.dataset.act);
