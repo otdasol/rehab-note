@@ -4202,7 +4202,7 @@ function paintInst() {
       : i?.pendingEmail ? `<p>✉ <b>${esc(i.pendingEmail)}</b>로 확인 메일을 보냈어요. 메일(스팸함도)의 링크를 누른 뒤 아래에서 <b>로그인</b>하세요.</p>`
       : `<p class="hint">기관 계약이 있는 치료사만 써요. 진료 기록은 서버로 가지 않고 이 폰에만 있고, 서버에는 소속과 ${who()}별 동의 기록만 남아요.</p>`}
     <input type="email" id="instEmail" placeholder="이메일" autocomplete="username" value="${esc(i?.email || "")}">
-    <input type="password" id="instPw" placeholder="비밀번호 (8자 이상)" autocomplete="current-password" style="margin-top:8px">
+    <input type="password" id="instPw" placeholder="비밀번호 (10자 이상, 영문+숫자)" autocomplete="current-password" style="margin-top:8px">
     <div class="row" style="gap:8px;margin-top:10px">${o ? "" : `<button class="btn" data-inst="signup" style="flex:1;height:48px">처음이면 가입</button>`}<button class="btn primary" data-inst="login" style="flex:1.4">로그인</button></div>
     ${o ? "" : `<p class="hint" style="margin:10px 0 0">가입하면 메일함에 확인 링크가 와요. 누른 뒤 여기서 로그인하세요.</p>`}
     ${o ? `<button class="btn ghost" data-inst="leave" style="height:36px;padding:0;margin-top:8px;font-size:14px">이 폰에서 기관판 끄기</button>` : ""}`;
@@ -4241,6 +4241,7 @@ async function instAction(a) {
     const email = $("#instEmail").value.trim(), pw = $("#instPw").value;
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("이메일을 확인해 주세요");
     if (pw.length < 8) throw new Error("비밀번호는 8자 이상으로 해 주세요");
+    if (a === "signup" && !(pw.length >= 10 && /\d/.test(pw) && /[A-Za-z]/.test(pw))) throw new Error("새 비밀번호는 10자 이상, 영문과 숫자를 섞어 주세요 (환자 기록을 다루는 계정이에요)");
     i.email = email;
     if (a === "signup") {
       const r = await sbFetch(`/auth/v1/signup?redirect_to=${encodeURIComponent(CONFIRM_PAGE)}`, { method: "POST", body: { email, password: pw } });
@@ -5209,7 +5210,7 @@ function paintAdmin() {
   if (!s) h = `${head("로그인 필요", "off")}
     ${i?.pendingEmail ? `<p>✉ <b>${esc(i.pendingEmail)}</b>로 확인 메일을 보냈어요. 메일의 링크를 누른 뒤 아래에서 로그인하세요.</p>` : `<p class="hint">관리자 계정으로 로그인하세요. 처음이면 가입한 뒤 기관을 만들면 그 계정이 대표 관리자가 돼요.</p>`}
     <input type="email" id="admEmail" placeholder="이메일" autocomplete="username" value="${esc(i?.email || "")}">
-    <input type="password" id="admPw" placeholder="비밀번호 (8자 이상)" autocomplete="current-password" style="margin-top:8px">
+    <input type="password" id="admPw" placeholder="비밀번호 (10자 이상, 영문+숫자)" autocomplete="current-password" style="margin-top:8px">
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn" data-adm="signup" style="flex:1;height:48px">처음이면 가입</button><button class="btn primary" data-adm="login" style="flex:1.4">로그인</button></div>`;
   else if (!o) h = `${head("기관 없음", "wait")}
     <p><b>${esc(s.email)}</b>로 로그인했어요. 우리 기관을 만드세요. 만드는 계정이 대표 관리자가 돼요.</p>
@@ -5235,6 +5236,7 @@ async function adminAction(a) {
     const email = $("#admEmail").value.trim(), pw = $("#admPw").value;
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("이메일을 확인해 주세요");
     if (pw.length < 8) throw new Error("비밀번호는 8자 이상으로 해 주세요");
+    if (a === "signup" && !(pw.length >= 10 && /\d/.test(pw) && /[A-Za-z]/.test(pw))) throw new Error("새 비밀번호는 10자 이상, 영문과 숫자를 섞어 주세요 (환자 기록을 다루는 계정이에요)");
     i.email = email;
     if (a === "signup") {
       const r = await sbFetch(`/auth/v1/signup?redirect_to=${encodeURIComponent(CONFIRM_PAGE)}`, { method: "POST", body: { email, password: pw } });

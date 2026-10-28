@@ -151,6 +151,8 @@ git tag v0.23; git push origin v0.23
 - **차트 사진**(병원판·AI 켜짐): 세션 정보 카드 "📷 차트 사진으로 진단명·주호소 채우기" → `pickChartPhoto` → 사진을 폰 안에서 글로(안드로이드 `OTNative.ocr` = ML Kit 한국어 `src/hospital/.../Ocr.kt`, 개인판은 stub; 웹은 Tesseract.js `TESS_URL`) → `maskChart`(성명·등록번호·주민·연락처·주소 줄 값 지움 + `maskPII` + 5자리 이상 숫자) → **치료사가 지운 글 확인**(`#dlgChart` ① 단계) → `relay("chart")`(cheap) → ② 결과 확인·수정 → `chartApply`: `s.dx`(환자 dx 비었으면 같이)·`s.precaution`·SOAP S(주호소)·O(발병일·사실·약). 사진 파일은 폰 밖으로 안 나가고 글만(지운 뒤) 간다. 안드로이드 파일 선택은 `WebChromeClient.onShowFileChooser`(갤러리 + 카메라 `FileProvider ${applicationId}.charts`, 캐시 `charts/`, OCR 뒤 삭제). 의존성 `hospitalImplementation("com.google.mlkit:text-recognition-korean:16.0.1")`.
 - 시험 빌드: 태그 없이 `gh api -X POST repos/otdasol/rehab-note/actions/workflows/release-apk.yml/dispatches -f ref=main -f 'inputs[release]=false'` → Actions › Artifacts(14일). `gh workflow run`은 GraphQL이라 세션에서 안 된다.
 - 모의 테스터 피드백 문서(11개 분야·우선순위): Claude Docs https://claude.ai/artifact/5jd4JNrTk2JYQCJFK2joKF
+- 같은 날 더 넣은 것: PT `JOINT_SETS`(진단별 MMT·ROM 세트, 쪽 고른 뒤 한 번에) + ROM은 `AROM`/`PROM` 접두(`j.kind`, 이름 "PROM 무릎 굴곡 (Rt)"); 아동 활동 `a.ok/try/prompt/level/tags`(정반응 카운터·촉구·난이도·직무별 꼬리표 `ACT_TAGS`) + `l.parentNote`(보호자 안내) → `actLine`; OT `adlCard`(`l.adl` 항목별 보조 수준, `ADL_LEVELS_ITEMS`) → "- ADL: …" 줄, K-MBI 참고에도; 미술 작품 사진 `a.photos`(IndexedDB `photo:<id>` 키에만, `photoGc`로 정리, 기록·AI·PC·복사 제외); 기관 관리 "이번 달 AI 사용"(audit_log `ai.use` 집계); 가입 비밀번호 10자+영문+숫자; `showOb`가 dialog를 먼저 열고 그리도록(기관 연결 화면 빈 상자 버그).
+- 남은 큰 것(다음): 기관 종류(병원/센터) × 대상(성인/아동)을 직무와 분리(병원 언어치료=성인 실어증·연하 등 콘텐츠 필요), 세션 토큰 Keystore 암호화, 기록 시간 집계(폰 → 서버, 방침 갱신 필요).
 
 ## 보고서 기능 (핵심)
 
