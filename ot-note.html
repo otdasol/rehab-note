@@ -476,6 +476,7 @@
 <dialog class="sheet" id="dlgMakeup"></dialog>
 <dialog class="sheet" id="dlgSlot"></dialog>
 <dialog class="sheet" id="dlgConsent"></dialog>
+<dialog class="full" id="dlgChart"></dialog>
 <dialog class="full" id="dlgNotice"></dialog>
 <dialog class="full" id="dlgAdmin"></dialog>
 <dialog class="full" id="dlgDoc">
@@ -2437,6 +2438,8 @@ function renderSheet() {
         <input data-f="label" value="${esc(s.label)}" placeholder="${who()} 표시 입력" style="margin-top:12px;font-weight:800">
         <div class="chips" style="margin-top:10px">${labels.map((x) => `<button class="chip ${s.label === x ? "on" : ""}" data-label="${x}">${x}</button>`).join("")}</div>
         <div class="row" style="margin-top:12px"><input data-f="time" value="${esc(s.time)}" type="time" style="width:140px;flex:none"><input data-f="dx" value="${esc(s.dx)}" placeholder="진단명 (선택)"></div>
+        ${aiOn() ? `<button class="btn block" data-x="chartPhoto" style="margin-top:8px" ${isBusy ? "disabled" : ""}>📷 차트 사진으로 진단명·주호소 채우기</button>
+        <p class="muted small" style="margin:6px 0 0">사진은 폰 안에서만 글로 바뀌고 밖으로 나가지 않아요. 이름·등록번호는 지운 뒤 AI가 칸별로 나눠요.</p>` : ""}
         <p class="muted small" style="margin:8px 0 0">${icon("lock", 13)} 이름·등록번호는 적지 마세요</p>
         <label class="field" style="margin:12px 0 10px">${who()} 메모 · 이 폰에서만 보여요 (복사${PERSONAL ? "" : "·AI"}에 들어가지 않아요)
           <input data-f="alias" value="${esc(s.alias)}" placeholder="${isCenter() ? "예: 노란 가방, 엄마와 옴" : "예: 창가 자리, 초록 모자"}"></label>
@@ -2648,6 +2651,7 @@ $("#sheet").addEventListener("click", (e) => {
     }
   }
   if (x === "moreItems") { itemsMore.add(s.id); renderSheet(); return; }
+  if (x === "chartPhoto") { pickChartPhoto(s); return; }
   if (x === "copyRecord") { copy(recordText(s), "치료기록을 복사했어요"); return; }
   if (x === "copySession") { copy(sessionText(s)); return; }
   if (x === "copySoap") { if (s.draft) copy(["S", "O", "A", "P"].map((k) => `${k}: ${sectionText(s, k)}`).join("\n"), "SOAP를 복사했어요"); return; }
@@ -4331,6 +4335,112 @@ $("#dlgConsent").addEventListener("close", finishConsent);
 /** 보내기 전에 전화번호·주민번호·등록번호처럼 보이는 숫자를 가린다 */
 // "○○○님·○○○씨" 꼴은 이름일 가능성이 높아 가린다. 호칭·직함으로 흔히 쓰는 말은 그대로 둔다.
 const NOT_NAME = new Set(["선생", "보호자", "어머", "아버", "환자", "치료사", "간호사", "의사", "아저", "아가", "할머", "할아", "원장", "과장", "실장", "팀장", "부장", "주임", "교수", "기사", "사모", "고객", "대상자", "어르신", "부모", "형", "누", "언니", "오빠", "사장", "회장", "목사", "스님", "수녀", "신부", "아드", "따", "손주", "아빠", "엄마"]);
+// ---------- 차트 사진 → 폰 안 OCR → 이름·번호 지우기 → AI가 칸별로 (병원판) ----------
+// 간호 차트·의뢰지를 찍으면 ① 폰 안에서 글로 바꾸고(안드로이드 ML Kit, 웹은 Tesseract) ② 이름·등록번호를 지운 글을 치료사가 확인한 뒤
+// ③ AI가 진단명·주호소·S/O·주의사항으로 나눈다. 사진 파일은 폰 밖으로 나가지 않고, 글만(지운 뒤) 중계 서버로 간다.
+const TESS_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js";
+let chartJob = null; // { sid, text, masked, result, stage, busy }
+let ocrWaiter = null;
+function pickChartPhoto(s) {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+  inp.onchange = () => { const f = inp.files?.[0]; if (f) chartFromFile(s, f); };
+  inp.click();
+}
+/** 사진을 줄여(긴 변 1800px) JPEG로 만든다. OCR이 빨라지고 메모리도 아낀다. */
+async function shrinkImage(file, max = 1800) {
+  const bmp = await createImageBitmap(file).catch(() => null);
+  if (!bmp) throw new Error("사진을 열지 못했어요");
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.();
+  return c;
+}
+async function ocrCanvas(c) {
+  if (native?.ocr) { // 안드로이드: ML Kit 한국어 인식 (폰 안, 인터넷 없이)
+    const b64 = c.toDataURL("image/jpeg", 0.85).split(",")[1];
+    return new Promise((res, rej) => { ocrWaiter = { res, rej }; native.ocr(b64); });
+  }
+  if (typeof TESS_URL === "undefined") throw new Error("이 판에서는 사진 읽기를 쓸 수 없어요");
+  const T = await import(TESS_URL).catch(() => { throw new Error("글자 인식 도구를 받지 못했어요. 인터넷을 확인해 주세요"); });
+  const worker = await T.createWorker("kor+eng");
+  try { const { data } = await worker.recognize(c); return data.text; } finally { await worker.terminate(); }
+}
+window.otOnOcr = (text, err) => { const w = ocrWaiter; ocrWaiter = null; if (!w) return; err ? w.rej(new Error(err === "nomodel" ? "한국어 글자 인식 파일을 받는 중이에요. 잠시 뒤 다시 해 주세요" : "사진에서 글자를 읽지 못했어요")) : w.res(String(text || "")); };
+/** 차트 줄에서 이름·번호·연락처·주소 값을 지운다. 완벽하지 않으니 치료사가 한 번 더 본다. */
+function maskChart(t) {
+  const lines = String(t).split(/\r?\n/).map((ln) => ln
+    .replace(/(성\s*명|이\s*름|환자\s*명|환자\s*이름|보호자(\s*명|\s*이름)?|등록\s*번호|병록\s*번호|차트\s*번호|등록\s*no\.?|chart\s*no\.?|주민\s*(등록)?\s*번호|생년\s*월일|연락처|전화(\s*번호)?|휴대폰|핸드폰|주\s*소|name|patient\s*id|reg\.?\s*no\.?)\s*[:：]?\s*\S[^|\t]*/gi, "$1: [지움]"));
+  return maskPII(lines.join("\n"))
+    .replace(/(?<![\d-])\d{5,}(?![\d-])/g, "[번호]") // 등록번호는 5자리 이상 숫자
+    .replace(/\b(19|20)\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}\b(?=.*(생|출생|DOB|birth))/gi, "[생년월일]");
+}
+async function chartFromFile(s, file) {
+  chartJob = { sid: s.id, stage: "ocr", busy: true, text: "", masked: "", result: null }; renderChartDlg();
+  try {
+    const c = await shrinkImage(file);
+    const text = (await ocrCanvas(c)).trim();
+    if (!text) throw new Error("사진에서 글자를 읽지 못했어요. 더 밝고 가까이 찍어 주세요");
+    chartJob.text = text; chartJob.masked = maskChart(text); chartJob.stage = "check"; chartJob.busy = false;
+  } catch (e) { chartJob.stage = "error"; chartJob.busy = false; chartJob.error = e.message; }
+  renderChartDlg();
+}
+async function chartSort() {
+  const j = chartJob; if (!j || j.busy) return;
+  const ta = $("#dlgChart [data-cmask]"); if (ta) j.masked = ta.value;
+  if (!j.masked.trim()) { toast("보낼 내용이 없어요"); return; }
+  j.busy = true; j.stage = "ai"; renderChartDlg();
+  try { j.result = await relay("chart", { role: role(), text: j.masked }, false, findSession(j.sid)?.pid); j.stage = "result"; }
+  catch (e) { j.stage = "check"; toast(e.message); }
+  j.busy = false; renderChartDlg();
+}
+function chartApply() {
+  const j = chartJob; const s = j && findSession(j.sid); if (!s) return;
+  const r = j.result; const get = (k) => ($(`#dlgChart [data-ck="${k}"]`)?.value ?? r[k] ?? "").trim();
+  const dx = get("dx"), onset = get("onset"), cc = get("cc"), so = get("s"), o = get("o"), pre = get("precaution"), meds = get("meds");
+  const p = patientOf(s);
+  if (dx) { s.dx = dx; if (p && !p.dx) p.dx = dx; }
+  if (pre) s.precaution = s.precaution?.trim() ? `${s.precaution.trim()} / ${pre}` : pre;
+  const d = ensureDraft(s);
+  const add = (k, v) => { if (!v) return; d.soap[k] = d.soap[k]?.trim() ? `${d.soap[k].trimEnd()}\n${v}` : v; };
+  add("S", [cc && `[주호소] ${cc}`, so].filter(Boolean).join("\n"));
+  add("O", [onset && `- 발병·수술일: ${onset}`, o, meds && `- 관련 약: ${meds}`].filter(Boolean).join("\n"));
+  if (r.unclear?.trim()) add("O", r.unclear.trim());
+  save(); $("#dlgChart").close(); chartJob = null; renderSheet(); renderSummary();
+  toast("진단명·주의사항·SOAP의 S/O에 넣었어요. 확인 필요 표시를 봐 주세요");
+}
+function renderChartDlg() {
+  const j = chartJob; if (!j) return;
+  const head = (t) => `<div class="full-head"><div class="wrap row"><button class="icon-btn" data-cx="close" aria-label="닫기">${icon("back")}</button><div class="spacer" style="text-align:center;padding-left:40px"><b>${t}</b></div><span style="width:40px"></span></div></div>`;
+  let body = "";
+  if (j.stage === "ocr") body = `<div class="note-tip info"><span class="spin"></span><span class="spacer">사진에서 글자를 읽는 중… (폰 안에서만)</span></div>`;
+  else if (j.stage === "error") body = `<div class="note-tip err">⚠ ${esc(j.error)}</div><button class="btn block" data-cx="close" style="margin-top:12px">닫기</button>`;
+  else if (j.stage === "check" || j.stage === "ai") body = `
+    <p class="small" style="margin:0 0 8px"><b>① 이름·등록번호를 지운 글이에요.</b> 남은 개인정보가 있으면 직접 지워 주세요. 사진은 보내지 않고 이 글만 AI로 가요.</p>
+    <textarea data-cmask rows="12" style="font-size:14px">${esc(j.masked)}</textarea>
+    <p class="muted small" style="margin:6px 0 0">[지움]·[번호]는 앱이 지운 자리예요. 흐린 글자는 AI가 "[확인 필요]"로 표시해요.</p>
+    <button class="btn primary block" data-cx="sort" style="margin-top:12px" ${j.busy ? "disabled" : ""}>${j.busy ? '<span class="spin"></span>AI가 칸별로 나누는 중…' : `${icon("spark", 18)}② AI로 진단명·주호소·S/O 나누기`}</button>`;
+  else if (j.stage === "result") {
+    const r = j.result;
+    const f = (k, t, rows = 2) => `<label class="field" style="margin:10px 0 0">${t}<textarea data-ck="${k}" rows="${rows}">${esc(r[k] || "")}</textarea></label>`;
+    body = `<p class="small" style="margin:0"><b>③ 확인하고 넣기.</b> 고쳐도 돼요. 진단명·주의사항은 ${who()} 정보에, 나머지는 SOAP의 S/O에 들어가요.</p>
+      ${f("dx", "진단명", 1)}${f("onset", "발병·수술일", 1)}${f("precaution", "주의사항", 1)}${f("cc", "주호소 · 의뢰 사유 (S)")}${f("s", "주관적 정보 (S)")}${f("o", "객관적 정보 (O)", 4)}${f("meds", "관련 약", 1)}
+      ${r.unclear?.trim() ? `<p class="small" style="margin:10px 0 0;color:var(--warn)">⚠ ${esc(r.unclear)}</p>` : ""}
+      <button class="btn primary block" data-cx="apply" style="margin-top:14px;height:50px">이대로 넣기</button>
+      <button class="btn ghost block" data-cx="back" style="margin-top:8px;height:38px;font-size:14px">글로 돌아가기</button>`;
+  }
+  $("#dlgChart").innerHTML = `${head("차트 사진으로 채우기")}<div class="full-body">${body}</div>`;
+  if (!$("#dlgChart").open) $("#dlgChart").showModal();
+}
+$("#dlgChart").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const x = b.dataset.cx;
+  if (x === "close") { $("#dlgChart").close(); chartJob = null; }
+  if (x === "sort") chartSort();
+  if (x === "apply") chartApply();
+  if (x === "back") { chartJob.stage = "check"; renderChartDlg(); }
+});
+$("#dlgChart").addEventListener("cancel", (e) => { e.preventDefault(); $("#dlgChart").close(); chartJob = null; });
+
 function maskNames(t) {
   return t.replace(/([가-힣]{2,4}) ?(님|씨)(?!앗)/g, (m, w, h) => (NOT_NAME.has(w) || NOT_NAME.has(w.slice(-2)) || NOT_NAME.has(w.slice(-3))
     || (h === "씨" && /(글|솜|날|말|맵|불|마음|볍)$/.test(w)) ? m : `[이름]${h}`)); // 글씨·솜씨·날씨 같은 낱말은 이름이 아니다
@@ -5037,6 +5147,7 @@ window.otBack = () => {
   if ($("#lock").open) { if (lockMode === "unlock") return "exit"; hideLock(); return "handled"; }
   if ($("#dlgDoc").open) { $("#dlgDoc").close(); return "handled"; }
   if ($("#dlgConsent").open) { $("#dlgConsent").close(); finishConsent(); return "handled"; }
+  if ($("#dlgChart").open) { $("#dlgChart").close(); chartJob = null; return "handled"; }
   for (const id of ["#dlgNotice", "#dlgAdmin", "#picker", "#dlgMakeup", "#dlgSlot", "#dlgSettings", "#dlgHandout", "#dlgPatient", "#dlgGroup"]) if ($(id).open) { $(id).close(); return "handled"; }
   if ($("#dlgWeek").open) {
     if (weekEdit) { weekEdit = null; renderWeek(); } else $("#dlgWeek").close();

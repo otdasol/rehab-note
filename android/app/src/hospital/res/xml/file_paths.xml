@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 카메라 앱이 차트 사진을 잠깐 저장하는 곳 (앱 캐시 안, 글로 바꾼 뒤 지운다) -->
+<paths>
+    <cache-path name="charts" path="charts/" />
+</paths>

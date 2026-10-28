@@ -18,7 +18,7 @@ const BEDROCK_MODEL = {
   cheap: Deno.env.get("BEDROCK_MODEL_CHEAP") || "anthropic.claude-sonnet-5-v1:0",
 };
 
-const LIMITS = { soap: 80, stt: 120, record: 150, ideas: 60, summary: 30, review: 60, report: 30 }; // 기기 하나가 하루에 쓸 수 있는 횟수
+const LIMITS = { soap: 80, stt: 120, record: 150, ideas: 60, summary: 30, review: 60, report: 30, chart: 60 }; // 기기 하나가 하루에 쓸 수 있는 횟수
 const MAX_TEXT = 30_000;
 const MAX_AUDIO = 15 * 1024 * 1024;
 
@@ -696,6 +696,39 @@ async function stt(req: Request) {
   return json(200, { text });
 }
 
+// ---------- 차트 사진 글(OCR) → 진단명·주호소·S/O (병원판) ----------
+// 앱이 폰 안에서 간호 차트·의뢰지 사진을 글로 바꾸고(OCR), 이름·등록번호를 지운 뒤 보낸다. 사진 자체는 서버로 오지 않는다.
+// 글에 있는 것만 칸별로 옮기는 단순 정리라 값싼 모델을 쓴다.
+const chartOcrPrompt = (role: string) => `당신은 한국 병원 ${ROLE_NAME[role]}사의 기록 보조자입니다. 간호 차트·의뢰지·처방지를 사진으로 찍어 글로 바꾼 내용(OCR, 오타·줄바꿈 오류 있음)을 받아, 치료 기록에 쓸 칸으로 나눕니다.
+
+칸:
+- dx: 진단명(영문 약어와 한글 병기, 여러 개면 " / "로). 수술명·발병일이 있으면 괄호에.
+- onset: 발병일·수술일 (YYYY-MM-DD 또는 원문 표기). 없으면 빈 문자열.
+- cc: 주호소·의뢰 사유 (환자·보호자 호소, 의뢰 목적). "- " 개조식.
+- s: 주관적 정보 S에 넣을 내용(호소·병력 중 환자가 말한 것). "- " 개조식.
+- o: 객관적 정보 O에 넣을 내용(진단 검사 결과, 수술, 처방, 활력징후, 금기, 보조기, 기왕력 등 관찰·기록된 사실). "- " 개조식.
+- precaution: 치료 시 주의사항(금기 자세, 체중지지 제한, 낙상 위험, 알레르기, 격리, 혈압 기준, 절대안정 등). 한 줄, 없으면 빈 문자열.
+- meds: 치료와 관련 있는 약(항응고제, 항경련제, 혈압약, 진통제 등 이름만). 없으면 빈 문자열.
+- unclear: OCR이 흐려 확신 못 하는 항목을 "[확인 필요: 무엇]" 형식으로 나열. 없으면 빈 문자열.
+
+규칙:
+- 글에 있는 것만 옮깁니다. 없는 사실을 만들지 않습니다. OCR 오타는 임상 문맥으로 바로잡되(예: "Rt hemiplegla" → "Rt. hemiplegia"), 확신이 없으면 unclear에 적습니다.
+- 이름·등록번호·주민번호·연락처·주소·보호자 이름은 어떤 칸에도 쓰지 않습니다. 나이·성별은 dx 괄호 안에 "70대 남" 수준으로만.
+- 약어는 임상에서 쓰는 대로("Lt. hemiplegia", "s/p THR"). "~함/~있음" 개조식.
+- 치료 계획·목표·평가 점수는 만들지 않습니다(여기서는 차트 사실만).`;
+const CHART_OCR_SCHEMA = {
+  type: "object",
+  properties: { dx: { type: "string" }, onset: { type: "string" }, cc: { type: "string" }, s: { type: "string" }, o: { type: "string" }, precaution: { type: "string" }, meds: { type: "string" }, unclear: { type: "string" } },
+  required: ["dx", "onset", "cc", "s", "o", "precaution", "meds", "unclear"],
+  additionalProperties: false,
+};
+async function chartOcr(req: Request) {
+  const { role, text } = await req.json().catch(() => ({}));
+  if (!ROLE_RULES[role] || typeof text !== "string" || !text.trim()) return json(400, { error: "bad_request" });
+  if (text.length > 6000) return json(413, { error: "too_long" });
+  return askJson(chartOcrPrompt(role), CHART_OCR_SCHEMA, text, "cheap");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json(405, { error: "method" });
@@ -713,6 +746,7 @@ Deno.serve(async (req) => {
     if (kind === "summary") return await summary(req);
     if (kind === "review") return await review(req);
     if (kind === "report") return await report(req);
+    if (kind === "chart") return await chartOcr(req);
     return await soap(req);
   } catch (e) {
     // 내용은 남기지 않고 오류 종류만 기록한다

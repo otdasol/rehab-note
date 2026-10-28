@@ -15,7 +15,15 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.view.WindowManager
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.provider.MediaStore
+import android.util.Base64
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import androidx.core.content.FileProvider
+import java.io.File
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -60,6 +68,17 @@ class MainActivity : AppCompatActivity() {
         js("window.otOnFileOpened && otOnFileOpened(${JSONObject.quote(text)})")
     }
 
+    // 차트 사진 고르기: 화면의 <input type=file>이 열리면 갤러리·카메라를 보여 주고, 고른 사진을 화면에 넘긴다. 사진은 화면(JS) 메모리에만 있다.
+    private var fileCb: ValueCallback<Array<Uri>>? = null
+    private var cameraUri: Uri? = null
+    private val chooseFile = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val cb = fileCb; fileCb = null
+        val picked = if (r.resultCode == RESULT_OK) (r.data?.data ?: cameraUri) else null
+        cb?.onReceiveValue(picked?.let { arrayOf(it) })
+        if (picked != cameraUri) cameraFile()?.delete() // 갤러리에서 골랐으면 카메라용 임시 파일은 바로 지운다
+    }
+    private fun cameraFile(): File? = cameraUri?.lastPathSegment?.let { File(File(cacheDir, "charts"), it) }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +109,22 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 handedOver.clear()
                 handOverAudio()
+            }
+        }
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                fileCb?.onReceiveValue(null); fileCb = cb
+                val pick = Intent(Intent.ACTION_GET_CONTENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" }
+                val extras = mutableListOf<Intent>()
+                runCatching { // 카메라로 바로 찍기 (병원판: FileProvider가 있을 때만)
+                    val dir = File(cacheDir, "charts").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
+                    val f = File(dir, "chart_${System.currentTimeMillis()}.jpg")
+                    cameraUri = FileProvider.getUriForFile(this@MainActivity, "$packageName.charts", f)
+                    extras += Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore.EXTRA_OUTPUT, cameraUri)
+                        .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }.onFailure { cameraUri = null }
+                val chooser = Intent.createChooser(pick, "차트 사진").putExtra(Intent.EXTRA_INITIAL_INTENTS, extras.toTypedArray())
+                return runCatching { chooseFile.launch(chooser); true }.getOrElse { fileCb = null; cb.onReceiveValue(null); false }
             }
         }
         web.addJavascriptInterface(Bridge(), "OTNative")
@@ -319,6 +354,18 @@ class MainActivity : AppCompatActivity() {
                     .setAllowedAuthenticators(UNLOCK_WITH)
                     .build(),
             )
+        }
+
+        /** 차트 사진(JPEG base64)을 폰 안에서 글로 바꾼다. 결과는 otOnOcr(글, 오류). 사진은 메모리에만 두고 임시 파일은 지운다. */
+        @JavascriptInterface
+        fun ocr(jpegBase64: String) {
+            val bmp = runCatching { val b = Base64.decode(jpegBase64, Base64.DEFAULT); BitmapFactory.decodeByteArray(b, 0, b.size) }.getOrNull()
+            cameraFile()?.delete(); cameraUri = null
+            if (bmp == null) { js("window.otOnOcr && otOnOcr(null, 'error')"); return }
+            Ocr.run(bmp) { text, err ->
+                bmp.recycle()
+                runOnUiThread { js("window.otOnOcr && otOnOcr(${if (text == null) "null" else JSONObject.quote(text)}, ${if (err == null) "null" else JSONObject.quote(err)})") }
+            }
         }
 
         /** 초안이 완성되면 알림을 띄운다. 알림에는 "09:30 B환자" 같은 표시만 담긴다. */

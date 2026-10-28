@@ -99,4 +99,6 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.biometric:biometric:1.1.0")
+    // 병원판만: 차트 사진 글자 인식(한국어, 폰 안). 모델이 앱에 들어가 용량이 늘지만 사진이 밖으로 나가지 않는다.
+    "hospitalImplementation"("com.google.mlkit:text-recognition-korean:16.0.1")
 }
