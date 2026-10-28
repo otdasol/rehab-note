@@ -336,6 +336,8 @@
   .tip-bubble, .tip-bubble:popover-open { top: auto; bottom: calc(96px + env(safe-area-inset-bottom)); align-items: center; gap: 10px; font-weight: 600; line-height: 1.45; width: calc(100vw - 32px); max-width: 440px; padding: 12px 14px; }
   .tip-bubble:popover-open { display: flex; }
   .tip-bubble .tip-face { width: 40px; height: 40px; border-radius: 12px; flex: none; }
+  .act-num { min-width: 22px; text-align: center; font-size: 16px; }
+  .act-count .chip { height: 32px; padding: 0 10px; font-size: 13px; }
   .done-card { border-color: var(--ok); background: var(--ok-soft); }
   .prev-btn { height: 48px; border-color: var(--primary); color: var(--primary); }
   .coach-card summary { cursor: pointer; list-style: none; } .coach-card summary::-webkit-details-marker { display: none; }
@@ -660,6 +662,17 @@ const JOINTS = {
   "체간": ["굴곡", "신전"],
 };
 const MMT_GRADES = ["0", "1", "2-", "2", "2+", "3-", "3", "3+", "4-", "4", "4+", "5"];
+// 진단별 기본 세트: 자주 재는 관절·동작을 한 번에 줄로 만든다 (치료실에서 실제로 재는 것만). 15년차 PT 피드백: "진단마다 재는 세트가 정해져 있다".
+const JOINT_SETS = {
+  "편마비 상지": [["어깨", "굴곡"], ["어깨", "외전"], ["어깨", "외회전"], ["팔꿈치·전완", "굴곡"], ["팔꿈치·전완", "신전"], ["팔꿈치·전완", "회외"], ["손목", "신전"]],
+  "편마비 하지": [["고관절", "굴곡"], ["고관절", "외전"], ["무릎", "굴곡"], ["무릎", "신전"], ["발목", "배측굴곡"], ["발목", "저측굴곡"]],
+  "무릎 수술(TKR·ACL)": [["무릎", "굴곡"], ["무릎", "신전"], ["고관절", "굴곡"], ["고관절", "외전"]],
+  "고관절 수술(THR·골절)": [["고관절", "굴곡"], ["고관절", "외전"], ["고관절", "신전"], ["무릎", "굴곡"], ["무릎", "신전"]],
+  "어깨(오십견·회전근개)": [["어깨", "굴곡"], ["어깨", "외전"], ["어깨", "내회전"], ["어깨", "외회전"], ["어깨", "신전"]],
+  "요통·체간": [["체간", "굴곡"], ["체간", "신전"], ["고관절", "굴곡"], ["고관절", "신전"]],
+  "경추": [["경추", "굴곡"], ["경추", "신전"], ["경추", "회전"], ["어깨", "굴곡"]],
+  "발목·족부": [["발목", "배측굴곡"], ["발목", "저측굴곡"], ["발목", "내번"], ["발목", "외번"]],
+};
 let jointPick = null; // { tool, joint, motions: [], sides: [] } 평가 탭에서 부위를 고르는 중
 const ROLE = {
   OT: { name: "작업치료", short: "OT", hint: ["한 활동·횟수", "보조 수준", "대상자 반응·말", "특이사항", "다음 계획"],
@@ -822,7 +835,12 @@ function nextMakeup(pid) {
   return null;
 }
 /** 아동 활동 한 줄: "- T스윙 5분: 웃으며 '또' 요구함" */
-const actLine = (a) => `- ${a.name}${a.min ? ` ${a.min}분` : ""}${a.note?.trim() ? `: ${a.note.trim()}` : " 시행함"}`;
+const actLine = (a) => { // 아동 활동 한 줄: 이름 시간: 정반응/시도 · 촉구 · 난이도 · 반응
+  const bits = [a.try ? `정반응 ${a.ok || 0}/${a.try}회` : a.ok ? `정반응 ${a.ok}회` : "", a.prompt ? `${a.prompt} 촉구` : "", a.level ? `난이도 ${a.level}` : "", a.note?.trim() || ""].filter(Boolean);
+  return `- ${a.name}${a.min ? ` ${a.min}분` : ""}${bits.length ? `: ${bits.join(", ")}` : " 시행함"}`;
+};
+const ACT_PROMPTS = ["독립", "언어", "제스처", "모델링", "부분 신체", "전체 신체"];
+const ACT_LEVELS = ["쉬움", "적정", "어려움"];
 
 // 휴대폰 앱(안드로이드) 안에서 열렸을 때만 존재하는 네이티브 연결
 const native = window.OTNative || null;
@@ -1005,7 +1023,7 @@ function readmit(p) {
 }
 
 const hasEval = (s) => s.tools.some((t) => t.score !== "" || t.note?.trim()) || Object.values(s.draft?.soap || {}).some((v) => String(v).trim());
-const hasLog = (s) => { const l = s.log; return !!(l.fees.length || l.minutes || l.items.length || l.assist || l.response.length || l.note.trim() || hasSwal(l.swal) || hasPt(l.pt) || hasEval(s) || l.acts?.length); };
+const hasLog = (s) => { const l = s.log; return !!(l.fees.length || l.minutes || l.items.length || l.assist || l.response.length || l.note.trim() || l.parentNote?.trim() || hasSwal(l.swal) || hasPt(l.pt) || hasEval(s) || l.acts?.length); };
 /** 진행 중인 작업이 없을 때 세션의 상태를 데이터로부터 다시 정한다. "처리 중"에 멈추는 일을 막는다. */
 function settle(s) {
   s.waitUntil = 0; s.role ||= role(); // 어떤 직무로 기록했는지 남긴다 (직무를 바꿔 쓰는 치료사용)
@@ -1107,11 +1125,17 @@ function recalc(s) {
 function jointPickHtml(s) {
   const j = jointPick; const motions = JOINTS[j.joint] || [];
   const exists = (name) => s.tools.some((t) => t.name === name);
-  const rows = j.motions.flatMap((m) => j.sides.map((sd) => `${j.tool} ${j.joint} ${m} (${sd})`));
+  const rows = j.motions.flatMap((m) => j.sides.map((sd) => `${j.tool === "ROM" ? j.kind || "AROM" : j.tool} ${j.joint} ${m} (${sd})`));
   const fresh = rows.filter((n) => !exists(n));
+  const prefix = () => (j.tool === "ROM" ? j.kind || "AROM" : j.tool);
+  const setFresh = (k) => JOINT_SETS[k].flatMap(([jt, m]) => j.sides.map((sd) => `${prefix()} ${jt} ${m} (${sd})`)).filter((n) => !exists(n)).length;
   return `<div class="card" style="margin-top:10px;padding:12px">
     <div class="row"><b>${esc(j.tool)} 부위 고르기</b><span class="spacer"></span><span class="muted small">${j.tool === "MMT" ? "등급은 0~5, 4+처럼 적어요" : "각도는 ° 단위로 적어요"}</span></div>
-    <div class="chips" style="margin-top:8px">${Object.keys(JOINTS).map((k) => `<button class="chip ${j.joint === k ? "on" : ""}" data-jt="${esc(k)}" style="height:36px;padding:0 12px;font-size:13.5px">${esc(k)}</button>`).join("")}</div>
+    ${j.tool === "ROM" ? `<div class="seg" style="margin-top:8px">${["AROM", "PROM"].map((k) => `<button class="${(j.kind || "AROM") === k ? "on" : ""}" data-jk="${k}">${k === "AROM" ? "AROM · 능동" : "PROM · 수동"}</button>`).join("")}</div>` : ""}
+    <p class="muted small" style="margin:10px 0 0">진단별 기본 세트 <span class="muted">· 한 번에 줄 추가${j.sides.length ? ` (${j.sides.join("·")})` : ""}</span></p>
+    <div class="chips" style="margin-top:6px">${Object.keys(JOINT_SETS).map((k) => { const n = setFresh(k); return `<button class="chip" data-jset="${esc(k)}" ${n ? "" : "disabled"} style="height:34px;padding:0 10px;font-size:13px">${esc(k)}${n ? ` <span style="opacity:.6">+${n}</span>` : " ✓"}</button>`; }).join("")}</div>
+    <p class="muted small" style="margin:10px 0 0">직접 고르기</p>
+    <div class="chips" style="margin-top:6px">${Object.keys(JOINTS).map((k) => `<button class="chip ${j.joint === k ? "on" : ""}" data-jt="${esc(k)}" style="height:36px;padding:0 12px;font-size:13.5px">${esc(k)}</button>`).join("")}</div>
     <p class="muted small" style="margin:10px 0 0">동작 ${j.motions.length ? `<b>${j.motions.length}</b>` : ""}</p>
     <div class="chips" style="margin-top:6px">${motions.map((m) => `<button class="chip ${j.motions.includes(m) ? "on" : ""}" data-jm="${esc(m)}" style="height:36px;padding:0 12px;font-size:13.5px">${esc(m)}</button>`).join("")}
       <button class="chip" data-jm="*" style="height:36px;padding:0 12px;font-size:13.5px">${j.motions.length === motions.length ? "모두 해제" : "모두"}</button></div>
@@ -1167,7 +1191,8 @@ const memoText = (s) => s.transcript.replace(/\[치료사 구술 메모\]\n?/g, 
 /** 탭으로 고른 일지를 그대로 치료기록 글로 만든다 (AI 없이) */
 function composeRecord(s) {
   const l = s.log; const lines = [];
-  lines.push(...(l.acts || []).map(actLine)); // 아동: 활동 + 시간 + 반응
+  lines.push(...(l.acts || []).map(actLine)); // 아동: 활동 + 시간 + 정반응·촉구·난이도·반응
+  if (l.parentNote?.trim()) lines.push(`- 보호자 안내: ${l.parentNote.trim()}`);
   // 연하·보행은 아래 상세 문장에 이미 들어가므로 같은 말을 두 번 쓰지 않는다
   const gaitDetail = l.pt && (l.pt.aid.length || l.pt.dist || l.pt.reps);
   const items = l.items.filter((x) => !(x === "연하 훈련" && hasSwal(l.swal)) && !(x === "보행 훈련" && gaitDetail));
@@ -1252,7 +1277,7 @@ function sessionContext(s) {
   return [
     `슬롯: ${slotName(s)} · ${sessionNumber(s)}회기 · 진단명: ${s.dx || "(미입력)"}`,
     isCenter() ? `아동발달센터 ${s.kind || "정규"} 회기(50분)` : "",
-    l.acts?.length ? `오늘 활동: ${l.acts.map((a) => actLine(a).slice(2)).join(" / ")}` : "",
+    l.acts?.length ? `오늘 활동: ${l.acts.map((a) => actLine(a).slice(2)).join(" / ")}${l.parentNote?.trim() ? ` / 보호자 안내: ${l.parentNote.trim()}` : ""}` : "",
     `오늘 일지: 수가 ${feesOf(s).map(feeLabel).join(", ") || "-"} · 시간 ${l.minutes || "?"}분 · 중재 ${l.items.join(", ") || "-"} · 보조 수준 ${l.assist || "-"} · 반응 ${l.response.join(", ") || "-"}${l.note ? ` · 특이사항 ${l.note}` : ""}`,
     hasSwal(l.swal) ? `오늘 연하치료:\n${swalLines(l.swal).join("\n")}` : "",
     hasPt(l.pt) ? `오늘 물리치료 상세:\n${ptLines(l.pt).join("\n")}` : "",
@@ -2388,7 +2413,7 @@ function renderSheet() {
       ${s.tools.some(isMeasure) ? `<p class="muted small" style="margin:8px 0 0">정상 기준값은 병원에서 쓰는 기준표(나이·성별) 값을 넣어 주세요. 같은 ${who()}는 다음 평가 때 자동으로 채워져요. 초 단위는 지연배수(측정값÷기준값), 나머지는 정상 대비 %로 계산해요.</p>` : ""}
       <div class="cat-tabs" style="margin-top:14px">${cat.map((g) => `<button class="chip ${g.group === group.group ? "on" : ""}" data-cat="${esc(g.group)}">${esc(g.group)}</button>`).join("")}</div>
       <div class="chips">${group.items.map((it) => {
-        if (it.table) return `<button class="chip ${jointPick?.tool === it.name ? "on" : ""}" data-table="${esc(it.name)}">+ ${esc(it.name)} 부위</button>`;
+        if (it.table) return `<button class="chip ${jointPick?.tool === it.name ? "on" : ""}" data-table="${esc(it.name)}">+ ${esc(it.name)}${it.name === "ROM" ? " (AROM·PROM)" : ""} 부위·세트</button>`;
         const inCart = s.tools.some((t) => t.name === it.name || t.name.startsWith(`${it.name} `));
         return `<button class="chip" data-add="${esc(it.name)}" ${inCart ? "disabled" : ""}>${inCart ? "✓ " : "+ "}${esc(it.name)}</button>`;
       }).join("")}</div>
@@ -2535,7 +2560,7 @@ $("#sheet").addEventListener("click", (e) => {
   }
   if (b.dataset.cat) { catGroup = b.dataset.cat; renderSheet(); return; }
   if (b.dataset.focus) { s.ideasFocus = b.dataset.focus; save(); renderSheet(); return; }
-  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
+  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.actcnt || b.dataset.actp || b.dataset.actlv || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
   if (b.dataset.pt) {
     const p = ptOf(s); const k = b.dataset.pt; const v = b.dataset.v;
     if (k === "stairs") p.stairs = !p.stairs;
@@ -2573,9 +2598,19 @@ $("#sheet").addEventListener("click", (e) => {
     jointPick = jointPick?.tool === it.name ? null : { tool: it.name, unit: it.unit, joint: Object.keys(JOINTS)[0], motions: [], sides: sideOf(s) ? [sideOf(s)] : ["Rt", "Lt"] };
     renderSheet(); $("#sheet [data-jt]")?.scrollIntoView({ block: "nearest" }); return;
   }
-  if (jointPick && (b.dataset.jt || b.dataset.jm || b.dataset.js || b.dataset.x === "jointAdd" || b.dataset.x === "jointCancel")) {
-    const j = jointPick;
-    if (b.dataset.jt) { j.joint = b.dataset.jt; j.motions = []; }
+  if (jointPick && (b.dataset.jt || b.dataset.jm || b.dataset.js || b.dataset.jk || b.dataset.jset || b.dataset.x === "jointAdd" || b.dataset.x === "jointCancel")) {
+    const j = jointPick; const prefix = j.tool === "ROM" ? j.kind || "AROM" : j.tool;
+    if (b.dataset.jk) j.kind = b.dataset.jk;
+    else if (b.dataset.jset) { // 진단별 세트를 한 번에
+      if (!j.sides.length) { toast("쪽(Rt/Lt)을 먼저 골라 주세요"); return; }
+      const first = s.tools.length;
+      for (const [jt, m] of JOINT_SETS[b.dataset.jset]) for (const sd of ["Rt", "Lt"].filter((x) => j.sides.includes(x))) {
+        const name = `${prefix} ${jt} ${m} (${sd})`;
+        if (!s.tools.some((t) => t.name === name)) s.tools.push({ name, max: null, unit: j.unit, score: "", note: "" });
+      }
+      save(); renderSheet(); $(`#sheet [data-i="${first}"]`)?.focus(); toast(`${b.dataset.jset} 세트를 넣었어요. 안 재는 줄은 ×로 빼요`); return;
+    }
+    else if (b.dataset.jt) { j.joint = b.dataset.jt; j.motions = []; }
     else if (b.dataset.jm === "*") { const all = JOINTS[j.joint]; j.motions = j.motions.length === all.length ? [] : [...all]; }
     else if (b.dataset.jm) j.motions = j.motions.includes(b.dataset.jm) ? j.motions.filter((x) => x !== b.dataset.jm) : [...j.motions, b.dataset.jm];
     else if (b.dataset.js) j.sides = j.sides.includes(b.dataset.js) ? j.sides.filter((x) => x !== b.dataset.js) : [...j.sides, b.dataset.js];
@@ -2584,7 +2619,7 @@ $("#sheet").addEventListener("click", (e) => {
       const order = JOINTS[j.joint];
       const first = s.tools.length;
       for (const m of order.filter((x) => j.motions.includes(x))) for (const sd of ["Rt", "Lt"].filter((x) => j.sides.includes(x))) {
-        const name = `${j.tool} ${j.joint} ${m} (${sd})`;
+        const name = `${prefix} ${j.joint} ${m} (${sd})`;
         if (!s.tools.some((t) => t.name === name)) s.tools.push({ name, max: null, unit: j.unit, score: "", note: "" });
       }
       j.motions = []; // 같은 관절에서 다른 동작을 이어서 고를 수 있게 패널은 둔다
@@ -4515,7 +4550,15 @@ function actsCard(s) {
     ${acts.map((a, i) => `<div class="act-row"><div class="row"><b class="spacer">${esc(a.name)}</b>
         <button class="muted" data-actdel="${i}" aria-label="빼기" style="font-size:20px;width:28px">×</button></div>
       <div class="chips" style="margin-top:6px;gap:6px">${[5, 10, 15, 20, 30].map((m) => `<button class="chip ${String(a.min) === String(m) ? "on" : ""}" data-actmin="${i}" data-v="${m}" style="height:30px;padding:0 10px;font-size:13px">${m}분</button>`).join("")}</div>
-      <input data-actnote="${i}" value="${esc(a.note || "")}" placeholder="반응·수행 (예: 웃으며 '또' 요구 2회)" style="margin-top:6px"></div>`).join("")}
+      <div class="row act-count" style="margin-top:8px;gap:6px;align-items:center">
+        <span class="small" style="font-weight:700;flex:none">정반응</span>
+        <button class="chip" data-actcnt="${i}" data-k="ok" data-d="-1" aria-label="정반응 빼기">−</button><b class="act-num">${a.ok || 0}</b><button class="chip on" data-actcnt="${i}" data-k="ok" data-d="1" aria-label="정반응 더하기">+ 정반응</button>
+        <span class="muted small" style="white-space:nowrap">/ 시도</span><b class="act-num">${a.try || 0}</b><button class="chip" data-actcnt="${i}" data-k="try" data-d="1" aria-label="시도 더하기">+ 시도</button>
+        ${a.try ? `<span class="muted small" style="margin-left:auto">${Math.round(((a.ok || 0) / a.try) * 100)}%</span>` : ""}</div>
+      <div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">촉구</span>${ACT_PROMPTS.map((v) => `<button class="chip ${a.prompt === v ? "on" : ""}" data-actp="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>
+      <div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">난이도</span>${ACT_LEVELS.map((v) => `<button class="chip ${a.level === v ? "on" : ""}" data-actlv="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>
+      <input data-actnote="${i}" value="${esc(a.note || "")}" placeholder="반응 (예: 웃으며 '또' 요구 2회)" style="margin-top:6px"></div>`).join("")}
+    ${acts.length ? `<label class="field" style="margin:12px 0 0">보호자 안내 · 오늘 집에서 할 것 <input data-logf="parentNote" value="${esc(s.log.parentNote || "")}" placeholder="예: 그네 대신 담요 흔들기 5분, 숟가락은 손 위에 손"></label>` : ""}
   </div>`;
 }
 function onActClick(s, b) {
@@ -4527,6 +4570,9 @@ function onActClick(s, b) {
   }
   if (b.dataset.x === "addAct") { const v = $("#customAct").value.trim(); if (!v) return; if (!l.acts.some((a) => a.name === v)) l.acts.push({ name: v, min: 10, note: "" }); }
   if (b.dataset.actmin) { const a = l.acts[+b.dataset.actmin]; a.min = String(a.min) === b.dataset.v ? "" : +b.dataset.v; }
+  if (b.dataset.actcnt) { const a = l.acts[+b.dataset.actcnt]; const k = b.dataset.k; a[k] = Math.max(0, (a[k] || 0) + +b.dataset.d); if (k === "ok" && +b.dataset.d > 0) a.try = Math.max(a.try || 0, a.ok); } // 정반응을 누르면 시도도 함께 센다
+  if (b.dataset.actp) { const a = l.acts[+b.dataset.actp]; a.prompt = a.prompt === b.dataset.v ? "" : b.dataset.v; }
+  if (b.dataset.actlv) { const a = l.acts[+b.dataset.actlv]; a.level = a.level === b.dataset.v ? "" : b.dataset.v; }
   if (b.dataset.actdel) l.acts.splice(+b.dataset.actdel, 1);
   if (!s.finalized && s.status !== "busy") settle(s);
   save(); renderSheet(); renderSummary();
