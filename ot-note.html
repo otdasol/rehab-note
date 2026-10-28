@@ -3024,7 +3024,7 @@ $("#dlgWeek").addEventListener("close", () => { weekEdit = null; renderAll(); })
 
 // ---------- 환자 카드: 목표 · 재평가 · 점수 변화 · 퇴원 요약 ----------
 function addDays(d, n) { const x = new Date(d + "T00:00"); x.setDate(x.getDate() + n); return x.toLocaleDateString("sv-SE"); }
-function md(d) { return d ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : ""; }
+function md(d) { return typeof d === "string" && d.length >= 10 ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : ""; }
 /** 이 환자의 날짜별 회기 (오래된 순) */
 function sessionsOf(p) {
   return Object.keys(db.days).sort().flatMap((d) => db.days[d].sessions.filter((s) => s.pid === p.id).map((s) => ({ day: d, s })));
@@ -4255,10 +4255,12 @@ function logDetail(x) {
 async function loadAdmin() {
   const o = instOrg(); if (!o) return;
   try {
-    const [members, log] = await Promise.all([
+    const month = `${today().slice(0, 7)}-01`;
+    const [members, log, uses] = await Promise.all([
       sbUser(`/rest/v1/org_members?org_id=eq.${o.id}&select=user_id,role,active,display_name,job,joined_at,removed_at&order=joined_at`),
-      sbUser(`/rest/v1/audit_log?org_id=eq.${o.id}&select=actor,action,target_type,target_id,detail,at&order=at.desc&limit=40`)]);
-    adminData = { members, log };
+      sbUser(`/rest/v1/audit_log?org_id=eq.${o.id}&select=actor,action,target_type,target_id,detail,at&order=at.desc&limit=40`),
+      sbUser(`/rest/v1/audit_log?org_id=eq.${o.id}&action=eq.ai.use&at=gte.${month}&select=actor,detail&limit=5000`).catch(() => [])]); // 이번 달 AI 사용 집계 (영업·계약 갱신 근거)
+    adminData = { members, log, uses };
   } catch (err) { adminData = { error: err.message }; }
   if ($("#dlgAdmin").open) renderAdmin();
 }
@@ -4301,6 +4303,12 @@ function renderAdmin() {
               ${m.active && m.role !== "owner" && m.user_id !== me ? `<button class="btn" data-remove="${m.user_id}" style="${btnS}">해지</button>` : ""}</div>`).join("")}
         <p class="muted small" style="margin:8px 0 0">해지하면 그 사람의 폰은 다음에 앱을 열 때 기관 기록이 지워져요. 인터넷이 꺼진 폰은 연결될 때 지워져요.</p>
       </div>
+      ${d?.uses ? (() => { const by = {}; const kinds = {}; for (const u of d.uses) { by[u.actor] = (by[u.actor] || 0) + 1; const k = u.detail?.kind || "?"; kinds[k] = (kinds[k] || 0) + 1; }
+        const KIND_KO = { record: "치료기록", soap: "SOAP", summary: "보고서", ideas: "코치 노트", stt: "받아쓰기", chart: "차트 사진", review: "점검", report: "월간 보고서" };
+        return `<div class="card"><b>이번 달 AI 사용</b> <span class="muted small">${today().slice(5, 7)}월 · 총 ${d.uses.length}회 · 내용은 서버에 없어요</span>
+        ${d.uses.length ? `<p class="small" style="margin:8px 0 0">${Object.entries(kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${KIND_KO[k] || k} ${n}`).join(" · ")}</p>
+        ${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([u, n]) => `<div class="stat-row"><span class="spacer">${esc(nameOf(u))}</span><b>${n}회</b></div>`).join("")}
+        <p class="muted small" style="margin:8px 0 0">치료사 한 명이 한 달에 쓴 횟수예요. 기록 한 건마다 몇 분을 아꼈는지는 치료사에게 물어 함께 적어 두면 계약 갱신 때 근거가 돼요.</p>` : `<p class="muted small" style="margin:8px 0 0">아직 이번 달 사용이 없어요</p>`}</div>`; })() : ""}
       <div class="card"><b>최근 기록</b> <span class="muted small">한 일만 남고 진료 내용은 없어요</span>
         ${d?.log ? d.log.map((x) => `<div class="adm-log"><b>${esc(ACTION_KO[x.action] || x.action)}</b>${logDetail(x)} <span class="muted">· ${esc(nameOf(x.actor))} · ${fmtWhen(x.at)}</span></div>`).join("") || `<p class="muted small">아직 기록이 없어요</p>` : ""}
       </div>
@@ -5107,8 +5115,8 @@ const OB_PANELS = ["#onboardRoles", "#onboardInst", "#onboardAdmin"];
 function showOb(id) {
   for (const x of OB_PANELS) $(x).hidden = x !== id;
   $("#btnAdminMode").hidden = PERSONAL;
+  if (!$("#onboard").open) $("#onboard").showModal(); // 먼저 열어야 paintInst가 온보딩 쪽 상자에 그린다
   if (id === "#onboardInst") paintInst(); if (id === "#onboardAdmin") paintAdmin();
-  if (!$("#onboard").open) $("#onboard").showModal();
 }
 function showOnboardInst() { showOb("#onboardInst"); }
 function showRoleScreen() { showOb("#onboardRoles"); }
