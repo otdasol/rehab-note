@@ -4523,7 +4523,8 @@ async function ocrCanvas(c) {
   }
   if (typeof TESS_URL === "undefined") throw new Error("이 판에서는 사진 읽기를 쓸 수 없어요");
   const T = await import(TESS_URL).catch(() => { throw new Error("글자 인식 도구를 받지 못했어요. 인터넷을 확인해 주세요"); });
-  const worker = await T.createWorker("kor+eng");
+  const createWorker = T.createWorker || T.default?.createWorker; if (!createWorker) throw new Error("글자 인식 도구를 열지 못했어요");
+  const worker = await createWorker("kor+eng");
   try { const { data } = await worker.recognize(c); return data.text; } finally { await worker.terminate(); }
 }
 window.otOnOcr = (text, err) => { const w = ocrWaiter; ocrWaiter = null; if (!w) return; err ? w.rej(new Error(err === "nomodel" ? "한국어 글자 인식 파일을 받는 중이에요. 잠시 뒤 다시 해 주세요" : "사진에서 글자를 읽지 못했어요")) : w.res(String(text || "")); };
@@ -4573,7 +4574,7 @@ function renderChartDlg() {
   const j = chartJob; if (!j) return;
   const head = (t) => `<div class="full-head"><div class="wrap row"><button class="icon-btn" data-cx="close" aria-label="닫기">${icon("back")}</button><div class="spacer" style="text-align:center;padding-left:40px"><b>${t}</b></div><span style="width:40px"></span></div></div>`;
   let body = "";
-  if (j.stage === "ocr") body = `<div class="note-tip info"><span class="spin"></span><span class="spacer">사진에서 글자를 읽는 중… (폰 안에서만)</span></div>`;
+  if (j.stage === "ocr") body = `<div class="note-tip info"><span class="spin"></span><span class="spacer">사진에서 글자를 읽는 중… (폰 안에서만)${native?.ocr ? "" : "<br><span class=\"small\">웹판은 처음 한 번 한국어 인식 파일(약 10MB)을 받아요. 1분쯤 걸릴 수 있어요.</span>"}</span></div>`;
   else if (j.stage === "error") body = `<div class="note-tip err">⚠ ${esc(j.error)}</div><button class="btn block" data-cx="close" style="margin-top:12px">닫기</button>`;
   else if (j.stage === "check" || j.stage === "ai") body = `
     <p class="small" style="margin:0 0 8px"><b>① 이름·등록번호를 지운 글이에요.</b> 남은 개인정보가 있으면 직접 지워 주세요. 사진은 보내지 않고 이 글만 AI로 가요.</p>
