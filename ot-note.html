@@ -836,10 +836,17 @@ function nextMakeup(pid) {
 }
 /** 아동 활동 한 줄: "- T스윙 5분: 웃으며 '또' 요구함" */
 const actLine = (a) => { // 아동 활동 한 줄: 이름 시간: 정반응/시도 · 촉구 · 난이도 · 반응
-  const bits = [a.try ? `정반응 ${a.ok || 0}/${a.try}회` : a.ok ? `정반응 ${a.ok}회` : "", a.prompt ? `${a.prompt} 촉구` : "", a.level ? `난이도 ${a.level}` : "", a.note?.trim() || ""].filter(Boolean);
+  const bits = [a.try ? `정반응 ${a.ok || 0}/${a.try}회` : a.ok ? `정반응 ${a.ok}회` : "", a.prompt ? `${a.prompt} 촉구` : "", a.level ? `난이도 ${a.level}` : "", a.tags?.length ? a.tags.join("·") : "", a.note?.trim() || ""].filter(Boolean);
   return `- ${a.name}${a.min ? ` ${a.min}분` : ""}${bits.length ? `: ${bits.join(", ")}` : " 시행함"}`;
 };
 const ACT_PROMPTS = ["독립", "언어", "제스처", "모델링", "부분 신체", "전체 신체"];
+// 직무별 활동 꼬리표 (여러 개): 감각통합은 감각 반응·각성, 놀이는 놀이 주제, 미술은 매체·표현, 인지는 주의
+const ACT_TAGS = {
+  SI: ["추구", "회피", "과민", "낮은 등록", "적응 반응 좋음", "각성 높음", "각성 낮음", "자기조절 됨"],
+  PLAY: ["양육 주제", "공격 주제", "숙달·성취", "역할놀이", "규칙 지키기", "정서 표현", "상호작용 시도"],
+  ART: ["색 다양", "한 색만", "크게 그림", "작게 그림", "작품 설명함", "매체 거부", "집중 지속"],
+  COG: ["주의 지속", "주의 분산", "자기 수정", "전략 사용", "피로"],
+};
 const ACT_LEVELS = ["쉬움", "적정", "어려움"];
 
 // 휴대폰 앱(안드로이드) 안에서 열렸을 때만 존재하는 네이티브 연결
@@ -1023,7 +1030,7 @@ function readmit(p) {
 }
 
 const hasEval = (s) => s.tools.some((t) => t.score !== "" || t.note?.trim()) || Object.values(s.draft?.soap || {}).some((v) => String(v).trim());
-const hasLog = (s) => { const l = s.log; return !!(l.fees.length || l.minutes || l.items.length || l.assist || l.response.length || l.note.trim() || l.parentNote?.trim() || hasSwal(l.swal) || hasPt(l.pt) || hasEval(s) || l.acts?.length); };
+const hasLog = (s) => { const l = s.log; return !!(l.fees.length || l.minutes || l.items.length || l.assist || l.response.length || l.note.trim() || l.parentNote?.trim() || hasAdl(l) || hasSwal(l.swal) || hasPt(l.pt) || hasEval(s) || l.acts?.length); };
 /** 진행 중인 작업이 없을 때 세션의 상태를 데이터로부터 다시 정한다. "처리 중"에 멈추는 일을 막는다. */
 function settle(s) {
   s.waitUntil = 0; s.role ||= role(); // 어떤 직무로 기록했는지 남긴다 (직무를 바꿔 쓰는 치료사용)
@@ -1166,7 +1173,9 @@ function adlEvidence(s, t) {
   const past = sessionsOf(p).filter(({ s: x }) => x.id !== s.id && x.finalized);
   const last = past.map(({ day, s: x }) => ({ day, t: x.tools.find((y) => y.name === t.name && y.score !== "") })).filter((x) => x.t).at(-1);
   const recent = past.filter(({ s: x }) => x.log.assist).slice(-10);
-  const rows = (ADL_ITEMS[role()] || []).map((item) => {
+  const lv = past.filter(({ s: x }) => hasAdl(x.log)).slice(-6).flatMap(({ day, s: x }) => Object.entries(x.log.adl).filter(([, v]) => v).map(([k, v]) => `${k} ${v} (${md(day)})`));
+  const lvRow = lv.length ? `<div>· 항목별 보조 수준: ${esc(lv.slice(-8).join(", "))}</div>` : "";
+  const rows = lvRow + (ADL_ITEMS[role()] || []).map((item) => {
     const hits = recent.filter(({ s: x }) => x.log.items.includes(item));
     if (!hits.length) return "";
     const cnt = {}; for (const { s: x } of hits) cnt[x.log.assist] = (cnt[x.log.assist] || 0) + 1;
@@ -1198,6 +1207,7 @@ function composeRecord(s) {
   const items = l.items.filter((x) => !(x === "연하 훈련" && hasSwal(l.swal)) && !(x === "보행 훈련" && gaitDetail));
   if (items.length) lines.push(`- ${items.join(", ")} 시행함`);
   lines.push(...swalLines(l.swal), ...ptLines(l.pt));
+  if (adlLine(l)) lines.push(adlLine(l));
   if (l.assist) lines.push(`- ${l.assist} 수준으로 수행함`);
   if (l.response.length) lines.push(`- 치료 중 ${l.response.join(", ")}`);
   if (l.note.trim()) lines.push(`- ${l.note.trim()}`);
@@ -1280,6 +1290,7 @@ function sessionContext(s) {
     l.acts?.length ? `오늘 활동: ${l.acts.map((a) => actLine(a).slice(2)).join(" / ")}${l.parentNote?.trim() ? ` / 보호자 안내: ${l.parentNote.trim()}` : ""}` : "",
     `오늘 일지: 수가 ${feesOf(s).map(feeLabel).join(", ") || "-"} · 시간 ${l.minutes || "?"}분 · 중재 ${l.items.join(", ") || "-"} · 보조 수준 ${l.assist || "-"} · 반응 ${l.response.join(", ") || "-"}${l.note ? ` · 특이사항 ${l.note}` : ""}`,
     hasSwal(l.swal) ? `오늘 연하치료:\n${swalLines(l.swal).join("\n")}` : "",
+    hasAdl(l) ? `오늘 ${adlLine(l).slice(2)}` : "",
     hasPt(l.pt) ? `오늘 물리치료 상세:\n${ptLines(l.pt).join("\n")}` : "",
     `오늘 평가: ${tools}`,
     s.precaution ? `주의사항(반드시 지킬 것): ${s.precaution}` : "",
@@ -2038,6 +2049,21 @@ function swalLines(w) {
   if (w.signs.length) out.push(`- 관찰: ${w.signs.join(", ")}`);
   return out;
 }
+// ---------- ADL 항목별 보조 수준 (OT, 병원) ----------
+// 한 회기에 여러 ADL을 훈련하면 항목마다 보조 수준이 다르다. 고른 것만 기록에 "- ADL: 식사 min A, 옷 입기 mod A"로 들어간다.
+const ADL_LEVELS_ITEMS = ["식사", "옷 입기(상의)", "옷 입기(하의)", "세면·양치", "목욕", "화장실", "이동(침상↔의자)", "휠체어 이동", "보행"];
+const adlOf = (s) => (s.log.adl ||= {});
+const hasAdl = (l) => !!l.adl && Object.values(l.adl).some(Boolean);
+const adlLine = (l) => (hasAdl(l) ? `- ADL: ${ADL_LEVELS_ITEMS.filter((k) => l.adl[k]).map((k) => `${k} ${l.adl[k]}`).join(", ")}` : "");
+function adlCard(s) {
+  if (role() !== "OT" || isCenter()) return "";
+  const a = adlOf(s); const open = hasAdl(s.log);
+  return `<details class="card" ${open ? "open" : ""}><summary class="row" style="cursor:pointer"><b>ADL 항목별 보조 수준</b><span class="spacer"></span><span class="muted small">${open ? `${Object.values(a).filter(Boolean).length}개` : "필요할 때 펼쳐요"}</span></summary>
+    ${ADL_LEVELS_ITEMS.map((k) => `<div class="row" style="margin-top:8px;gap:6px;align-items:center"><span class="small" style="flex:none;min-width:92px;font-weight:700">${esc(k)}</span>
+      <div class="chips" style="gap:4px">${ASSIST.map((v) => `<button class="chip ${a[k] === v ? "on" : ""}" data-adl="${esc(k)}" data-v="${v}" style="height:28px;padding:0 8px;font-size:12px">${v}</button>`).join("")}</div></div>`).join("")}
+    <p class="muted small" style="margin:8px 0 0">고른 항목만 기록에 들어가요. K-MBI·FIM 점수를 정할 때 참고가 돼요.</p>
+  </details>`;
+}
 function swalCard(s) {
   if (!showSwal(s)) return "";
   const w = swalOf(s);
@@ -2367,7 +2393,7 @@ function renderSheet() {
         <div style="margin-top:8px">${chipRow(shownItems, "items", (v) => l.items.includes(v))}</div>
         ${shownItems.length < items.length ? `<button class="chip" data-x="moreItems" style="margin-top:6px">+ 나머지 ${items.length - shownItems.length}개 더 보기</button>` : ""}
         <div class="row" style="margin-top:8px"><input id="customItem" placeholder="목록에 없는 치료"><button class="btn" data-x="addItem">추가</button></div></div>`}
-      ${swalCard(s)}${ptCard(s)}
+      ${swalCard(s)}${ptCard(s)}${adlCard(s)}
       <div class="card"><b>${isCenter() ? "촉구 수준" : "보조 수준"}</b>
         <div class="chips" style="margin-top:8px">${assistList().map((v) => `<button class="chip ${l.assist === v ? "on" : ""}" data-log="assist" data-v="${esc(v)}">${assistChip(v)}</button>`).join("")}</div>
         <b style="display:block;margin-top:14px">${isCenter() ? "아동 반응" : "대상자 반응"}</b>
@@ -2560,7 +2586,7 @@ $("#sheet").addEventListener("click", (e) => {
   }
   if (b.dataset.cat) { catGroup = b.dataset.cat; renderSheet(); return; }
   if (b.dataset.focus) { s.ideasFocus = b.dataset.focus; save(); renderSheet(); return; }
-  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.actcnt || b.dataset.actp || b.dataset.actlv || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
+  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.actcnt || b.dataset.actp || b.dataset.actlv || b.dataset.acttag || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
   if (b.dataset.pt) {
     const p = ptOf(s); const k = b.dataset.pt; const v = b.dataset.v;
     if (k === "stairs") p.stairs = !p.stairs;
@@ -2633,6 +2659,7 @@ $("#sheet").addEventListener("click", (e) => {
     recalc(s); save(); renderSheet(); return;
   }
   if (b.dataset.feesel) { s.feeActive = b.dataset.feesel; save(); renderSheet(); return; }
+  if (b.dataset.adl) { const a = adlOf(s); a[b.dataset.adl] = a[b.dataset.adl] === b.dataset.v ? "" : b.dataset.v; if (!s.finalized && s.status !== "busy") settle(s); save(); renderSheet(); renderSummary(); return; }
   if (b.dataset.log) { // 시간·보조 수준은 하나만, 수가·중재·반응은 여러 개
     const l = s.log; const k = b.dataset.log; const v = b.dataset.v;
     if (k === "minutes" && l.fees.length && !isCenter()) { // 활성 수가(마지막에 누른 수가)에 시간을 붙인다
@@ -4565,6 +4592,7 @@ function actsCard(s) {
         ${a.try ? `<span class="muted small" style="margin-left:auto">${Math.round(((a.ok || 0) / a.try) * 100)}%</span>` : ""}</div>
       <div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">촉구</span>${ACT_PROMPTS.map((v) => `<button class="chip ${a.prompt === v ? "on" : ""}" data-actp="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>
       <div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">난이도</span>${ACT_LEVELS.map((v) => `<button class="chip ${a.level === v ? "on" : ""}" data-actlv="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>
+      ${(ACT_TAGS[role()] || []).length ? `<div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">${role() === "SI" ? "감각 반응" : role() === "PLAY" ? "놀이 주제" : role() === "ART" ? "표현" : "관찰"}</span>${ACT_TAGS[role()].map((v) => `<button class="chip ${a.tags?.includes(v) ? "on" : ""}" data-acttag="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>` : ""}
       <input data-actnote="${i}" value="${esc(a.note || "")}" placeholder="반응 (예: 웃으며 '또' 요구 2회)" style="margin-top:6px"></div>`).join("")}
     ${acts.length ? `<label class="field" style="margin:12px 0 0">보호자 안내 · 오늘 집에서 할 것 <input data-logf="parentNote" value="${esc(s.log.parentNote || "")}" placeholder="예: 그네 대신 담요 흔들기 5분, 숟가락은 손 위에 손"></label>` : ""}
   </div>`;
@@ -4581,6 +4609,7 @@ function onActClick(s, b) {
   if (b.dataset.actcnt) { const a = l.acts[+b.dataset.actcnt]; const k = b.dataset.k; a[k] = Math.max(0, (a[k] || 0) + +b.dataset.d); if (k === "ok" && +b.dataset.d > 0) a.try = Math.max(a.try || 0, a.ok); } // 정반응을 누르면 시도도 함께 센다
   if (b.dataset.actp) { const a = l.acts[+b.dataset.actp]; a.prompt = a.prompt === b.dataset.v ? "" : b.dataset.v; }
   if (b.dataset.actlv) { const a = l.acts[+b.dataset.actlv]; a.level = a.level === b.dataset.v ? "" : b.dataset.v; }
+  if (b.dataset.acttag) { const a = l.acts[+b.dataset.acttag]; a.tags ||= []; a.tags = a.tags.includes(b.dataset.v) ? a.tags.filter((x) => x !== b.dataset.v) : [...a.tags, b.dataset.v]; }
   if (b.dataset.actdel) l.acts.splice(+b.dataset.actdel, 1);
   if (!s.finalized && s.status !== "busy") settle(s);
   save(); renderSheet(); renderSummary();
