@@ -2391,7 +2391,7 @@ function doneCard(s) {
       <button class="btn" style="flex:1" data-x="copySession">${icon("copy", 16)}전체</button>
     </div>
     ${soap ? "" : needSoap(s) && aiOn() ? `<p class="muted small" style="margin:8px 0 0">SOAP는 아직이에요. SOAP 탭에서 만들 수 있어요.</p>` : ""}
-    <p class="muted small" style="margin:8px 0 0">고칠 게 있으면 아래에서 바로 고치고 다시 완료를 누르면 돼요.</p>
+    <div class="row" style="gap:8px;margin-top:8px;align-items:center"><span class="muted small spacer">고칠 게 있으면 아래에서 고치고 다시 완료.</span><button class="btn ghost" data-x="close" style="height:34px;padding:0 12px;font-size:13px">다음 ${who()} →</button></div>
   </div>`;
 }
 
