@@ -333,6 +333,12 @@
   .cart-line .unit { width: 40px; font-size: 12px; color: var(--muted); }
   .toast:popover-open { display: block; position: fixed; inset: auto; top: calc(16px + env(safe-area-inset-top)); left: 50%; right: auto; bottom: auto; transform: translateX(-50%); margin: 0; border: 0; overflow: visible; max-width: calc(100vw - 32px); }
   .toast { position: fixed; top: calc(16px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 30; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-weight: 700; font-size: 14px; display: none; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+  .tip-bubble, .tip-bubble:popover-open { top: auto; bottom: calc(96px + env(safe-area-inset-bottom)); align-items: center; gap: 10px; font-weight: 600; line-height: 1.45; width: calc(100vw - 32px); max-width: 440px; padding: 12px 14px; }
+  .tip-bubble:popover-open { display: flex; }
+  .tip-bubble .tip-face { width: 40px; height: 40px; border-radius: 12px; flex: none; }
+  .done-card { border-color: var(--ok); background: var(--ok-soft); }
+  .prev-btn { height: 48px; border-color: var(--primary); color: var(--primary); }
+  .coach-card summary { cursor: pointer; list-style: none; } .coach-card summary::-webkit-details-marker { display: none; }
   .note-tip { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--teal-soft); color: var(--teal); font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
   .note-tip.err { background: var(--rec-soft); color: var(--rec); }
   .note-tip.warn { display: block; background: #fff4e5; color: var(--warn); line-height: 1.55; }
@@ -597,6 +603,7 @@
   </div>
 </dialog>
 <div class="toast" id="toast" popover="manual"></div>
+<div class="toast tip-bubble" id="tipBubble" popover="manual"></div>
 
 <script type="module">
 // ---------- 직무별 평가도구: 도구 이름과 점수 범위만 담고, 문항은 넣지 않는다 ----------
@@ -1280,6 +1287,27 @@ function completeRecord(s) {
   s.finalized = true; s.status = "final"; s.transcript = "";
   save();
 }
+/** SOAP가 필요한 회기: 평가 점수가 있는 날, 또는 치료사가 SOAP를 쓰기 시작한 날 */
+const needSoap = (s) => !!(evalList(s).length || (s.draft && Object.values(s.draft.soap).some((v) => v.trim())));
+/** 병원판 "기록 완료" 한 번: AI가 문장을 정리하고 → 확인 질문이 없으면 바로 완료 → 평가한 날이면 SOAP까지 만든다.
+ *  버튼을 여러 개 누르지 않고 완성품(치료기록·SOAP)이 나오게 하는 흐름. 실패하면 고른 내용 그대로 완료할 수 있게 둔다. */
+async function finishWithAi(s) {
+  if (!s.rec?.text || s.transcript.trim()) { // 아직 AI가 정리하지 않았거나 메모가 새로 생겼으면 정리부터
+    await busy(s, "AI가 치료기록을 정리하는 중…", () => draftRecord(s));
+    if (s.lastError) { s.aiFailed = true; return; }
+    if (openQuestions(s)) { toast("확인할 것이 있어요. 답하면 바로 완료돼요"); return; }
+  }
+  completeRecord(s);
+  await finishExtras(s);
+}
+/** 완료 뒤 덤: 평가한 날은 SOAP까지. 끝나면 완성 카드로 안내한다 */
+async function finishExtras(s) {
+  if (needSoap(s) && !(s.draft && Object.values(s.draft.soap).every((v) => v.trim()))) await busy(s, "AI가 SOAP까지 쓰는 중…", () => draftSoap(s));
+  s.aiFailed = false; save(); renderAll();
+  toast(s.draft ? "기록 완료! 치료기록과 SOAP가 준비됐어요" : "기록 완료! 복사해서 붙여 넣으면 끝이에요");
+  tipShow("done");
+  $("#sheet")?.scrollTo({ top: 0, behavior: "smooth" });
+}
 /** 다음 회기에 해 볼 중재 아이디어. 참고용이라 기록·복사에는 넣지 않는다. */
 async function draftIdeas(s, more) {
   const seen = more ? (s.ideas?.items || []).map((x) => x.title) : [];
@@ -1413,6 +1441,7 @@ window.otOnSpeechEnd = (reason) => {
   const t = listenTarget; listenTarget = null;
   if (recording?.kind === "listen") { const s = findSession(recording.id) || todaySession(recording.id); recording = null; if (s) settle(s); save(); }
   renderAll(); if (t?.pid && cardFor === t.pid) renderCard();
+  if (t?.pid && t.part === "__dict" && !reason) { const p = db.patients.find((x) => x.id === t.pid); if (p && cloudVoice({ pid: p.id }) && rpNotes(p, t.type).__dict?.trim()) sortReport(p); } // 말하기 끝 → 바로 칸별로
   const msg = { lang: "한국어 음성 인식 파일을 폰에 받고 있어요. 잠시 뒤 다시 눌러 주세요 (와이파이 권장).", permission: "마이크를 허용해야 말로 남길 수 있어요",
     unavailable: "이 폰은 폰 안 음성 인식을 쓸 수 없어요. 키보드의 🎤 마이크로 말해 주세요.", error: "음성 인식이 멈췄어요. 다시 눌러 주세요." }[reason];
   if (msg) toast(msg);
@@ -1513,6 +1542,21 @@ function toast(msg) {
   try { el.showPopover?.(); } catch { /* 이미 열려 있음 */ }
   clearTimeout(toast.t); toast.t = setTimeout(() => { el.style.display = "none"; try { el.hidePopover?.(); } catch { /* 이미 닫힘 */ } }, 3200);
 }
+// 처음 쓰는 사람에게 딱 세 번만 뜨는 말풍선. 각 단계에서 한 번 보면 다시 뜨지 않는다 (설정 tips에 남긴다).
+const TIPS = {
+  home: () => `${who()} 칸을 누르면 기록이 시작돼요. 칸이 없으면 <b>+</b>로 만들어요.`,
+  record: () => `보이는 칸을 <b>눌러서 고르기</b>만 하면 글이 저절로 만들어져요. 다 고르면 맨 아래 <b>기록 완료</b>.`,
+  done: () => (inst()?.pc?.code ? `<b>복사</b>를 누르면 병원 PC 받기함에도 같은 글이 떠요.` : `<b>복사</b>를 눌러 전자차트에 붙여 넣으면 끝이에요.${PERSONAL ? "" : " PC 받기함을 연결하면 PC에도 바로 떠요 (설정 맨 위)."}`),
+};
+function tipShow(key) {
+  const seen = (db.settings.tips ||= {}); if (seen[key] || !TIPS[key]) return;
+  seen[key] = today(); save();
+  const el = $("#tipBubble"); el.innerHTML = `<img class="tip-face" src="./design/mascot.webp" alt=""><span class="spacer">${TIPS[key]()}</span><button class="btn" data-tipok style="height:34px;padding:0 12px;font-size:13px;flex:none;background:var(--bg);color:var(--ink);border:0">알겠어요</button>`;
+  el.style.display = "flex"; try { el.showPopover?.(); } catch { /* 이미 열려 있음 */ }
+  clearTimeout(tipShow.t); tipShow.t = setTimeout(tipHide, 9000);
+}
+function tipHide() { const el = $("#tipBubble"); el.style.display = "none"; try { el.hidePopover?.(); } catch { /* 이미 닫힘 */ } }
+$("#tipBubble").addEventListener("click", (e) => { if (e.target.closest("[data-tipok]")) tipHide(); });
 
 const STATUS = {
   recording: ["녹음 중", "rec"], busy: ["처리 중", "info"], writing: ["작성 중", "teal"],
@@ -2172,23 +2216,41 @@ function ideaHtml(s, it, i) {
     <button class="btn" data-idea="${i}" style="height:32px;padding:0 12px;font-size:13px;margin-top:8px">${added ? "✓ 오늘 한 치료에 들어감" : "+ 오늘 한 치료에 추가"}</button>
   </details>`;
 }
+/** 코치 노트: 예전의 "치료 아이디어"와 "슈퍼비전"을 하나로. 다음 회기를 위한 이론 한 줄 + 아이디어. 정체 신호가 있으면 케이스 상담으로 이어 준다. */
 function ideasCard(s, isBusy, prev) {
   if (!aiOn()) return "";
   const ready = !!(s.dx || hasLog(s) || s.transcript.trim() || prev || patientOf(s)?.goals?.length);
+  const p = patientOf(s); const pl = p ? plateauOf(p) : null;
   const focus = s.ideasFocus || "자동";
-  return `<div class="card">
-    <div class="row"><b>치료 아이디어</b><span class="spacer"></span><span class="muted small">참고용 가이드</span></div>
-    <p class="muted small" style="margin:6px 0 0">치료 전 준비나 다음 회기 계획에 써요. 진단·목표·점수·오늘 수행·주의사항을 보고 준비물, 순서, 난이도 조절, 기록 예시까지 알려 줘요.</p>
-    <div class="chips" style="margin-top:10px;gap:6px">${FOCUS[role()].map((f) => `<button class="chip ${focus === f ? "on" : ""}" data-focus="${f}" style="height:32px;padding:0 12px;font-size:13px">${f}</button>`).join("")}</div>
-    ${s.ideas ? `${s.ideas.items.map((it, i) => ideaHtml(s, it, i)).join("")}
+  return `<details class="card coach-card" ${s.ideas || pl ? "open" : ""}><summary class="row"><b>🎓 코치 노트</b><span class="spacer"></span><span class="muted small">다음 회기 준비 · 참고용</span></summary>
+    <p class="muted small" style="margin:6px 0 0">중재마다 <b>어떤 이론·원리</b>에 기대는지 한 줄과 준비물·순서·난이도 조절을 알려 줘요. 복사할 때는 들어가지 않아요.</p>
+    ${pl ? `<p class="small" style="margin:8px 0 0;padding:8px 10px;border-radius:10px;background:var(--warn-soft, #fff4e5);color:var(--warn)">📉 정체 신호가 있어요 → ${who()} 카드의 <b>케이스 상담</b>에서 깊게 봐 줘요</p>` : ""}
+    ${s.ideas ? `<div class="chips" style="margin-top:10px;gap:6px">${FOCUS[role()].map((f) => `<button class="chip ${focus === f ? "on" : ""}" data-focus="${f}" style="height:30px;padding:0 10px;font-size:12px">${f}</button>`).join("")}</div>
+      ${s.ideas.items.map((it, i) => ideaHtml(s, it, i)).join("")}
       ${s.ideas.tip ? `<p class="small" style="margin:12px 0 0;padding:10px;border-radius:12px;background:var(--primary-soft)">💡 ${esc(s.ideas.tip)}</p>` : ""}
       ${s.ideas.caution ? `<p class="small" style="margin:10px 0 0;color:var(--warn)">⚠ ${esc(s.ideas.caution)}</p>` : ""}
-      <p class="muted small" style="margin:10px 0 0">AI가 만든 일반적인 아이디어예요. 대상자에게 맞는지는 치료사가 판단해 주세요. 복사할 때 들어가지 않아요.</p>` : ""}
+      <p class="muted small" style="margin:10px 0 0">AI 코치의 일반적인 제안이에요. 대상자에게 맞는지는 치료사가 판단해 주세요.</p>` : ""}
     <div class="row" style="gap:8px;margin-top:10px">
-      <button class="btn ${s.ideas ? "" : "primary"}" style="flex:1" data-x="aiIdeas" ${isBusy || !ready ? "disabled" : ""}>${icon("spark", 16)}${s.ideas ? "새로 받기" : "아이디어 받기"}</button>
+      <button class="btn ${s.ideas ? "" : "primary"}" style="flex:1" data-x="aiIdeas" ${isBusy || !ready ? "disabled" : ""}>${icon("spark", 16)}${s.ideas ? "코치 노트 새로 받기" : "코치 노트 받기"}</button>
       ${s.ideas ? `<button class="btn" style="flex:1" data-x="moreIdeas" ${isBusy ? "disabled" : ""}>다른 아이디어 더</button>` : ""}
     </div>
     ${ready ? "" : `<p class="muted small" style="margin:6px 0 0">진단명이나 오늘 한 치료를 넣으면 받을 수 있어요.</p>`}
+  </details>`;
+}
+/** 기록 완료 뒤 맨 위에 뜨는 완성 카드: 치료기록·SOAP를 바로 복사한다 (PC 받기함에도 같이 간다) */
+function doneCard(s) {
+  if (!s.finalized) return "";
+  const soap = s.draft && Object.values(s.draft.soap).some((v) => v.trim());
+  const pc = !!inst()?.pc?.code;
+  return `<div class="card done-card">
+    <div class="row"><b>✅ 기록 완료</b><span class="spacer"></span><span class="muted small">${pc ? "복사하면 PC에도 떠요" : "복사해서 붙여 넣으면 끝"}</span></div>
+    <div class="row" style="gap:8px;margin-top:10px">
+      <button class="btn primary" style="flex:1" data-x="copyRecord">${icon("copy", 16)}치료기록</button>
+      ${soap ? `<button class="btn primary" style="flex:1" data-x="copySoap">${icon("copy", 16)}SOAP</button>` : ""}
+      <button class="btn" style="flex:1" data-x="copySession">${icon("copy", 16)}전체</button>
+    </div>
+    ${soap ? "" : needSoap(s) && aiOn() ? `<p class="muted small" style="margin:8px 0 0">SOAP는 아직이에요. SOAP 탭에서 만들 수 있어요.</p>` : ""}
+    <p class="muted small" style="margin:8px 0 0">고칠 게 있으면 아래에서 바로 고치고 다시 완료를 누르면 돼요.</p>
   </div>`;
 }
 
@@ -2218,6 +2280,7 @@ let supAction = null;
 function askSupervisor(fn) { supAction = fn; showLock("supchk"); }
 
 let sheetFor = null, sheetTab = "record", catGroup = null;
+const itemsMore = new Set(); // "오늘 한 치료" 목록을 다 펼친 세션 (자주 쓰는 것만 보이게 접어 두는 기본값)
 let infoOpen = false; // 세션 위쪽 환자 정보 펼침. 표시가 없는 새 칸만 펼쳐서 연다.
 /** 기록 완료 전에 한 번 되물을 이유 (수가 시간 기준, 지난 회기와 똑같음) */
 function confirmReason(s) {
@@ -2238,6 +2301,7 @@ function openSheet(id, tabName) {
   infoOpen = !s0?.label;
   sheetFor = id; sheetTab = tabName || "record"; jointPick = null;
   renderSheet(); if (!$("#sheet").open) $("#sheet").showModal();
+  if (sheetTab === "record" && !s0?.finalized) tipShow("record");
 }
 function chipRow(list, key, on, label = (v) => v) {
   return `<div class="chips">${list.map((v) => `<button class="chip ${on(v) ? "on" : ""}" data-log="${key}" data-v="${esc(v)}">${esc(label(v))}</button>`).join("")}</div>`;
@@ -2256,8 +2320,10 @@ function renderSheet() {
     const fees = FEES[role()] || [];
     const items = [...new Set([...LOG_ITEMS[role()], ...l.items])];
     const warns = feeWarnings(s);
+    const shownItems = itemsMore.has(s.id) || items.length <= 10 ? items : [...new Set([...l.items, ...items.slice(0, 8)])];
     body = `
-      ${prev ? `<button class="btn block" data-x="logPrev" style="margin-bottom:10px">${icon("retry", 16)}지난 회기(${esc(prev.day.slice(5))})와 같게 채우기</button>` : ""}
+      ${doneCard(s)}
+      ${prev && !s.finalized ? `<button class="btn block prev-btn" data-x="logPrev" style="margin-bottom:10px">${icon("retry", 18)}지난 회기(${esc(prev.day.slice(5))})와 같게 채우기 <span class="muted small" style="font-weight:600">→ 달라진 점만 적기</span></button>` : ""}
       ${kindCard(s)}${fees.length ? `<div class="card"><b>수가</b> <span class="muted small">수가 누르고 → 아래에서 시간 누르면 치료 하나가 들어가요. 다음 수가를 누르면 새 치료가 이어져요.</span>
         ${[...new Set(fees.map((f) => f.group || ""))].map((g) => `${g ? `<p class="muted small" style="margin:10px 0 0;font-weight:700">${esc(g)}</p>` : ""}
           <div class="chips" style="margin-top:8px">${fees.filter((f) => (f.group || "") === g).map((f) => `<button class="chip ${l.fees.includes(f.id) ? "on" : ""}" data-log="fees" data-v="${f.id}">${esc(f.name)}${f.noCode ? "" : ` <span style="opacity:.6;font-weight:600">${f.id}</span>`}</button>`).join("")}</div>`).join("")}
@@ -2272,7 +2338,8 @@ function renderSheet() {
         <div style="margin-top:8px">${(() => { const cur = l.fees.length && !isCenter() ? String(feeMinOf(l)[l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1)] || "") : String(l.minutes); return chipRow(minutesList().map(String), "minutes", (v) => cur === v, (v) => `${v}분`); })()}</div>
         <input data-logf="minutes" inputmode="numeric" value="${esc(l.fees.length && !isCenter() ? feeMinOf(l)[l.fees.includes(s.feeActive) ? s.feeActive : l.fees.at(-1)] || "" : l.minutes)}" placeholder="직접 입력 (분)" style="margin-top:8px"></div>
       ${isCenter() ? actsCard(s) : `<div class="card"><b>오늘 한 치료</b> <span class="muted small">여러 개 고를 수 있어요</span>
-        <div style="margin-top:8px">${chipRow(items, "items", (v) => l.items.includes(v))}</div>
+        <div style="margin-top:8px">${chipRow(shownItems, "items", (v) => l.items.includes(v))}</div>
+        ${shownItems.length < items.length ? `<button class="chip" data-x="moreItems" style="margin-top:6px">+ 나머지 ${items.length - shownItems.length}개 더 보기</button>` : ""}
         <div class="row" style="margin-top:8px"><input id="customItem" placeholder="목록에 없는 치료"><button class="btn" data-x="addItem">추가</button></div></div>`}
       ${swalCard(s)}${ptCard(s)}
       <div class="card"><b>${isCenter() ? "촉구 수준" : "보조 수준"}</b>
@@ -2295,10 +2362,8 @@ function renderSheet() {
         <div class="row"><b>치료기록</b><span class="muted small">복사용 글</span><span class="spacer"></span>
           <button class="sec-copy" data-x="copyRecord" aria-label="치료기록 복사">${icon("copy", 16)}</button></div>
         <textarea data-rec="1" rows="6" style="margin-top:10px" placeholder="위에서 고르면 여기에 자동으로 채워져요">${esc(recordText(s))}</textarea>
-        <div class="row" style="margin-top:8px;gap:8px">
-          ${aiOn() ? `<button class="btn" style="flex:1" data-x="aiRecord" ${isBusy || !(hasLog(s) || s.transcript.trim()) ? "disabled" : ""}>${icon("spark", 16)}AI로 문장 정리</button>` : ""}
-          ${s.rec ? `<button class="btn" style="flex:1" data-x="resetRecord">${icon("retry", 16)}고른 내용으로 다시</button>` : ""}
-        </div>
+        ${cloudVoice(s) && !s.finalized ? `<p class="muted small" style="margin:8px 0 0">아래 <b>기록 완료</b>를 누르면 AI가 문장을 다듬고${needSoap(s) ? " SOAP까지 만든 뒤" : ""} 완성해요.</p>` : ""}
+        ${s.rec ? `<div class="row" style="margin-top:8px;gap:8px"><button class="btn" style="flex:1" data-x="resetRecord">${icon("retry", 16)}고른 내용으로 다시</button></div>` : ""}
       </div>
       ${reviewCard(s, isBusy)}
       ${ideasCard(s, isBusy, prev)}`;
@@ -2306,11 +2371,10 @@ function renderSheet() {
     const cat = catalog();
     const group = cat.find((g) => g.group === catGroup) || cat[0];
     body = `
-      <p class="muted small" style="margin:0 0 10px">평가한 날에만 입력하세요. 도구 이름과 총점만 남기고, 하위 결과나 소견은 '기타'에 직접 적${PERSONAL ? "어 주세요" : "거나 🎤로 말해 주세요"}. 검사지의 문항·채점 기준은 저작권이 있으니 옮겨 적지 마세요.</p>
+      <p class="muted small" style="margin:0 0 10px">평가한 날에만 입력하세요. 도구 이름과 총점만 남기고, 하위 결과나 소견은 '기타'에 직접 적어 주세요. 검사지의 문항·채점 기준은 저작권이 있으니 옮겨 적지 마세요.</p>
       ${s.tools.some((t) => sideIn(t.name)) ? `<div class="row side-row"><b class="small">손상측</b><span class="muted small spacer">건측 대비를 계산해요</span>
         ${["Rt", "Lt"].map((x) => `<button class="chip ${sideOf(s) === x ? "on" : ""}" data-side="${x}" style="height:34px;padding:0 14px;font-size:13px">${x}</button>`).join("")}</div>` : ""}
       ${s.tools.map((t, i) => {
-        const onMic = recording?.id === s.id && s.voiceTarget === i;
         const unitWord = t.unit === "초" ? "초" : t.unit;
         return `<div class="tool-box"><div class="cart-line" style="border:0;padding-bottom:4px"><span class="spacer" style="font-weight:700">${esc(t.name)}</span>
           ${t.text ? "" : `<input data-i="${i}" inputmode="${t.unit === "등급" ? "text" : "decimal"}" value="${esc(t.score)}" placeholder="${t.unit === "등급" ? "등급" : baseName(t.name) === "10MWT" ? "m/s 또는 초" : isMeasure(t) ? "측정값" : "총점"}"${t.unit === "등급" && t.name.startsWith("MMT ") ? ` list="mmtGrades"` : ""}><span class="unit">${t.max ? `/${t.max}` : esc(t.unit)}</span>`}
@@ -2318,8 +2382,7 @@ function renderSheet() {
         ${isMeasure(t) ? `<div class="row tool-norm"><span class="muted small spacer">정상 기준값 (선택)</span><input data-tnorm="${i}" inputmode="decimal" value="${esc(t.norm || "")}" placeholder="기준표 값"><span class="unit">${esc(unitWord)}</span></div>` : ""}
         <p class="calc-line" data-calc="${i}" ${t.calc && t.score !== "" ? "" : "hidden"}>${t.calc && t.score !== "" ? `= ${esc(t.calc)}` : ""}</p>
         ${adlEvidence(s, t)}
-        <div class="row tool-note"><input data-tn="${i}" value="${esc(t.note || "")}" placeholder="기타: 하위 결과·소견을 직접 적어요">
-          <button class="btn ${onMic ? "danger" : ""} mic-only" data-x="toolMic" data-ti="${i}" ${canRec && !isBusy ? "" : "disabled"} aria-label="말로 남기기" style="flex:none;width:44px;padding:0">${icon(onMic ? "stop" : "mic", 18)}</button></div></div>`;
+        <div class="row tool-note"><input data-tn="${i}" value="${esc(t.note || "")}" placeholder="기타: 하위 결과·소견을 직접 적어요"></div></div>`;
       }).join("")}
       ${s.tools.some(isMeasure) ? `<p class="muted small" style="margin:8px 0 0">정상 기준값은 병원에서 쓰는 기준표(나이·성별) 값을 넣어 주세요. 같은 ${who()}는 다음 평가 때 자동으로 채워져요. 초 단위는 지연배수(측정값÷기준값), 나머지는 정상 대비 %로 계산해요.</p>` : ""}
       <div class="cat-tabs" style="margin-top:14px">${cat.map((g) => `<button class="chip ${g.group === group.group ? "on" : ""}" data-cat="${esc(g.group)}">${esc(g.group)}</button>`).join("")}</div>
@@ -2337,8 +2400,9 @@ function renderSheet() {
     const d = s.draft || { soap: { S: "", O: "", A: "", P: "" } };
     const ph = PHRASES[role()];
     body = `
-      <p class="muted small" style="margin:0 0 10px">SOAP는 평가한 날처럼 필요할 때만 써요.${aiOn() ? " 평가 탭 점수와 치료기록을 바탕으로 AI가 초안을 만들 수 있어요." : " 아래 자주 쓰는 문구를 눌러 채울 수 있어요."}</p>
-      ${aiOn() ? `<button class="btn primary block" data-x="aiSoap" style="margin-bottom:10px" ${isBusy ? "disabled" : ""}>${icon("spark", 18)}${s.draft ? "AI로 SOAP 다시 만들기" : "AI로 SOAP 초안 만들기"}</button>` : ""}
+      <p class="muted small" style="margin:0 0 10px">SOAP는 평가한 날처럼 필요할 때만 써요.${aiOn() ? " 평가 점수가 있는 날은 <b>기록 완료</b> 때 저절로 만들어져요." : " 아래 자주 쓰는 문구를 눌러 채울 수 있어요."}</p>
+      ${aiOn() && !(s.draft && Object.values(s.draft.soap).some((v) => v.trim())) ? `<button class="btn block" data-x="aiSoap" style="margin-bottom:10px" ${isBusy ? "disabled" : ""}>${icon("spark", 18)}지금 SOAP 만들기</button>` : ""}
+      ${aiOn() && s.draft && Object.values(s.draft.soap).some((v) => v.trim()) ? `<button class="btn ghost block" data-x="aiSoap" style="margin-bottom:10px;height:36px;font-size:14px" ${isBusy ? "disabled" : ""}>${icon("retry", 15)}다시 만들기</button>` : ""}
       ${isBusy ? `<div class="note-tip info" style="margin:0 0 10px"><span class="spin"></span><span class="spacer">${esc(s.busyText)}</span><b id="busyEl"></b></div>` : ""}
       ${s.lastError ? `<div class="note-tip err" style="margin:0 0 10px"><span class="spacer">⚠ ${esc(s.lastError)}</span></div>` : ""}
       ${["S", "O", "A", "P"].map((k) => `
@@ -2583,12 +2647,13 @@ $("#sheet").addEventListener("click", (e) => {
       $("#noteInput")?.focus();
     }
   }
+  if (x === "moreItems") { itemsMore.add(s.id); renderSheet(); return; }
   if (x === "copyRecord") { copy(recordText(s), "치료기록을 복사했어요"); return; }
   if (x === "copySession") { copy(sessionText(s)); return; }
   if (x === "copySoap") { if (s.draft) copy(["S", "O", "A", "P"].map((k) => `${k}: ${sectionText(s, k)}`).join("\n"), "SOAP를 복사했어요"); return; }
   if (x === "resetRecord") { s.rec = null; if (!s.finalized) settle(s); save(); renderSheet(); return; }
   if (x === "aiRecord") busy(s, "AI가 치료기록을 정리하는 중…", () => draftRecord(s));
-  if (x === "answerOne") busy(s, "답을 반영하는 중…", () => answerRecord(s));
+  if (x === "answerOne") busy(s, "답을 반영하는 중…", () => answerRecord(s)).then(() => { if (s.finalized && !s.lastError) finishExtras(s); });
   if (x === "aiSoap") busy(s, "AI가 SOAP 초안을 쓰는 중…", () => draftSoap(s));
   if (x === "complete") {
     // 지난 회기를 그대로 가져와 달라진 점 없이 끝내려 하면 한 번만 되묻는다 (두 번째 누르면 그대로 완료)
@@ -2600,13 +2665,15 @@ $("#sheet").addEventListener("click", (e) => {
       return;
     }
     s.confirmWhy = false; s.fromPrev = false;
+    if (cloudVoice(s) && !s.aiFailed && !s.finalized) { finishWithAi(s); return; } // 병원판: 정리 → 완료 → SOAP까지 한 번에, 완성 카드가 위에 뜬다
     completeRecord(s);
     // 다음 환자로 바로 넘어가게 목록으로 돌아간다. 실습생 모드는 지도 치료사 확인 카드를 봐야 하니 그대로 둔다.
     if (studentOn()) { renderAll(); toast("기록 완료! 지도 치료사 확인을 기다려요."); }
+    else if (s.aiFailed) { s.aiFailed = false; save(); renderAll(); toast("고른 내용 그대로 완료했어요"); tipShow("done"); }
     else { $("#sheet").close(); renderAll(); toast("기록 완료! 정리 탭에서 오늘 기록을 한 번에 복사할 수 있어요."); }
   }
-  if (x === "aiIdeas") busy(s, "AI가 치료 아이디어를 고르는 중…", () => draftIdeas(s));
-  if (x === "moreIdeas") busy(s, "AI가 다른 아이디어를 찾는 중…", () => draftIdeas(s, true));
+  if (x === "aiIdeas") busy(s, "코치가 다음 회기를 준비하는 중…", () => draftIdeas(s));
+  if (x === "moreIdeas") busy(s, "코치가 다른 아이디어를 찾는 중…", () => draftIdeas(s, true));
   if (x === "aiReview") busy(s, "AI가 기록을 점검하는 중…", () => draftReview(s));
   if (x === "useImproved") {
     s.rec = Object.assign(s.rec || { questions: [], answers: {} }, { text: s.aiReview.improved });
@@ -3114,13 +3181,13 @@ function superviseCard(p) {
   if (!aiOn()) return pl && p.active ? `<div class="card sv-card warn"><b>📉 정체 구간이에요</b><ul class="small sv-reasons">${pl.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
     <p class="muted small" style="margin:6px 0 0">중재 강도·난이도·과제를 다시 살펴보고, 재평가 시기를 앞당겨 보세요.</p></div>` : "";
   if (!p.active && !sv) return "";
-  return `<details class="card sv-card ${pl ? "warn" : ""}" id="svCard" ${pl || sv || svBusy ? "open" : ""}><summary><b>${pl ? "📉 정체 구간이에요" : "🎓 AI 슈퍼비전 · 케이스 상담"}</b> <span class="muted small">› 30년차 임상가·교수 관점</span></summary>
-    ${pl ? `<ul class="small sv-reasons">${pl.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p class="muted small" style="margin:8px 0 0">진전이 더디거나 중재 방향이 고민될 때 받아 보세요.</p>`}
+  return `<details class="card sv-card ${pl ? "warn" : ""}" id="svCard" ${pl || sv || svBusy ? "open" : ""}><summary><b>${pl ? "📉 정체 구간이에요" : "🎓 코치 노트 · 케이스 상담"}</b> <span class="muted small">› 정체되거나 고민될 때</span></summary>
+    ${pl ? `<ul class="small sv-reasons">${pl.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p class="muted small" style="margin:8px 0 0">회기별 코치 노트가 "다음 회기 준비"라면, 여기는 기록 전체를 보고 <b>왜 안 되는지</b>와 <b>바꿀 것</b>을 짚어 줘요.</p>`}
     <label class="field" style="margin:10px 0 0">고민되는 점 (선택)
       <textarea data-c="svNote" rows="2" maxlength="1000" placeholder="${isCenter() ? "예: 그네는 타는데 촉각 놀이는 계속 회피함" : "예: 식사 훈련에서 2주째 min A, 숟가락 들 때 어깨가 올라감"}">${esc(p.svNote || "")}</textarea></label>
-    <button class="btn ${sv ? "" : "primary"} block" data-c="aiSupervise" style="margin-top:10px" ${svBusy ? "disabled" : ""}>${svBusy ? '<span class="spin"></span>슈퍼바이저가 기록을 살펴보는 중…' : `${icon("spark", 18)}${sv ? "다시 상담받기" : "AI 슈퍼비전 받기"}`}</button>
+    <button class="btn ${sv ? "" : "primary"} block" data-c="aiSupervise" style="margin-top:10px" ${svBusy ? "disabled" : ""}>${svBusy ? '<span class="spin"></span>코치가 기록 전체를 살펴보는 중…' : `${icon("spark", 18)}${sv ? "다시 상담받기" : "케이스 상담 받기"}`}</button>
     ${sv ? supervisionHtml(sv) : ""}
-    <p class="muted small" style="margin:8px 0 0">AI가 30년차 임상가·교수 관점으로 쓴 참고 의견이에요. 최종 판단은 담당 치료사가 해요.</p>
+    <p class="muted small" style="margin:8px 0 0">AI 코치의 참고 의견이에요. 최종 판단은 담당 치료사가 해요.</p>
   </details>`;
 }
 
@@ -3463,14 +3530,15 @@ function rpVoiceBox(p, t, on) {
   const said = rpNotes(p, t).__dict || "";
   return `<div class="rp-voice"><button class="btn primary block" data-c="rpDraft" ${rpDraftBusy ? "disabled" : ""}>${rpDraftBusy ? `<span class="spin"></span>AI가 ${REPORT_WORD()[t]} 보고서 초안을 쓰는 중…` : `${icon("spark", 18)}AI로 빈 칸 채우기 · 전문가 초안`}</button>
     <p class="muted small" style="margin:6px 0 12px">평가 점수·보조 수준·목표만 있어도 소견·문제점·목표·계획을 채워요. 이미 쓴 문장은 그대로 두고 더할 줄만 넣어요.</p>
-    <div class="row"><b class="spacer">🎤 말로 한꺼번에 · AI가 칸별로 정리</b>
+    <div class="row"><b class="spacer">🎤 말로 한꺼번에 → 칸별로 저절로</b>
       <button class="btn ${on ? "danger" : "primary"}" data-c="rpDictMic" style="height:36px;padding:0 14px;font-size:13.5px;flex:none">${icon(on ? "stop" : "mic", 16)}${on ? "말하기 끝" : "말하기"}</button></div>
-    ${on ? `<div class="small muted" id="rpPartial" style="margin-top:4px">듣고 있어요… 주호소부터 계획까지 <b>천천히, 또박또박</b> 말해 주세요</div>`
-      : `<p class="muted small" style="margin:4px 0 0">조용한 곳에서 <b>천천히, 또박또박</b> 말해 주세요. 숫자·약어는 한 번 더 또렷하게요.</p>`}
+    ${on ? `<div class="small muted" id="rpPartial" style="margin-top:4px">듣고 있어요… 주호소부터 계획까지 <b>천천히, 또박또박</b> 말해 주세요. 끝을 누르면 칸별로 나눠 넣어요.</div>`
+      : `<p class="muted small" style="margin:4px 0 0">조용한 곳에서 <b>천천히, 또박또박</b>. 말하기 끝을 누르면 AI가 칸별로 나눠 넣어요. (AI 처리 동의한 ${who()}만)</p>`}
     ${rpRec?.busy && rpRec.pid === p.id ? `<div class="small muted" style="margin-top:4px"><span class="spin"></span>말한 내용을 글로 바꾸는 중…</div>` : ""}
-    <textarea data-rpk="__dict" rows="3" maxlength="6000" style="margin-top:8px" placeholder="예: 숟가락 쥐기가 제일 힘들다고 하심. 식사 min A, 옷 입기 mod A. 2주 안에 식사 SBA 목표. 주 5회 30분, 2주 후 재평가">${esc(said)}</textarea>
-    <button class="btn block" data-c="rpSort" style="margin-top:8px" ${rpSortBusy || !said.trim() ? "disabled" : ""}>${rpSortBusy ? `<span class="spin"></span>AI가 칸별로 나누는 중…` : `${icon("spark", 16)}AI로 칸별 정리`}</button>
-    <p class="muted small" style="margin:6px 0 0">말한 내용만 나눠 넣어요. 넣은 뒤 꼭 확인해 주세요. (AI 처리 동의한 ${who()}만)</p></div>`;
+    ${rpSortBusy ? `<div class="small muted" style="margin-top:4px"><span class="spin"></span>칸별로 나누는 중…</div>` : ""}
+    ${said.trim() && !rpSortBusy ? `<textarea data-rpk="__dict" rows="3" maxlength="6000" style="margin-top:8px">${esc(said)}</textarea>
+      <button class="btn block" data-c="rpSort" style="margin-top:8px">${icon("spark", 16)}이 내용을 칸별로 나누기</button>
+      <p class="muted small" style="margin:6px 0 0">자동으로 나누지 못한 내용이에요. 고친 뒤 눌러 주세요.</p>` : ""}</div>`;
 }
 async function startReportRec(p) {
   if (recording) { toast("회기 녹음을 먼저 끝내 주세요"); return; }
@@ -3497,6 +3565,7 @@ async function reportTranscribe(r, blob, filename, nativeName) {
 ${text.trim()}` : text.trim(); save(); }
   } catch (err) { toast(err.message); }
   rpRec = null; if (p && cardFor === p.id) renderCard();
+  if (p && rpNotes(p, r.type).__dict?.trim()) { const keep = chartType; chartType = r.type; await sortReport(p); chartType = keep; if (cardFor === p.id) renderCard(); } // 글로 바뀌면 바로 칸별로
 }
 async function sortReport(p) {
   const t = chartType; const n = rpNotes(p, t); const said = (n.__dict || "").trim();
@@ -3522,9 +3591,7 @@ function rpWriter(p, t, micOn) {
   return `${rpVoiceBox(p, t, lt === "__dict" || (rpRec?.pid === p.id && !rpRec.busy))}
     <div class="small muted" style="margin-top:14px">③ 선생님이 쓰는 칸 · 단어를 누르면 문장이 쌓여요</div>
     <div class="rp-parts">${parts.map(([x, tt]) => `<button class="chip ${x === rpPart ? "on" : ""}" data-rppart="${x}">${n[x]?.trim() ? "✓ " : ""}${tt}</button>`).join("")}</div>
-    <div class="row" style="margin-top:8px"><b class="spacer">${title}</b>
-      <button class="btn ${lt && lt !== "__dict" ? "danger" : ""} mic-only" data-c="rpMic" style="height:34px;padding:0 12px;font-size:13px;flex:none">${icon(lt && lt !== "__dict" ? "stop" : "mic", 16)}${lt && lt !== "__dict" ? "말하기 끝" : "이 칸에 말로"}</button></div>
-    ${lt && lt !== "__dict" ? `<div class="small muted" id="rpPartial" style="margin-top:4px">듣고 있어요…</div>` : ""}
+    <div class="row" style="margin-top:8px"><b class="spacer">${title}</b></div>
     <textarea data-pbta="${esc(target)}" data-rpk="${k}" rows="4" maxlength="4000" placeholder="아래 단어를 누르거나 직접 적어 주세요" style="margin-top:6px">${esc(n[k] || "")}</textarea>
     ${pbHtml(target, mode)}`;
 }
@@ -4043,14 +4110,16 @@ function paintInst() {
     <button class="btn ghost" data-inst="signout" style="height:36px;padding:0;margin-top:8px;font-size:14px">로그아웃</button>`;
   else h = `${head("사용 중", "on")}${step(3)}
     <p><b>${esc(o.name)}</b> · ${ROLE_KO[o.role] || ""}<br><span class="hint">${esc(s.email)}</span></p>
-    <p class="hint">AI ${o.ai_enabled ? (o.ai_basis === "per_patient_consent" ? `<b style="color:var(--ok)">켜짐</b> · 동의 기록이 있는 ${who()}만` : `<b style="color:var(--ok)">켜짐</b> · 기관 고지 기준`) : `<b style="color:var(--warn)">꺼짐</b> · 관리자가 기관 관리에서 켜야 해요`}${lockOn() ? "" : ` · <b style="color:var(--warn)">앱 잠금을 켜 주세요</b>`}</p>
+    <p class="hint">AI ${o.ai_enabled ? (o.ai_basis === "per_patient_consent" ? `<b style="color:var(--ok)">켜짐</b> · 동의 기록이 있는 ${who()}만` : `<b style="color:var(--ok)">켜짐</b> · 기관 고지 기준`) : `<b style="color:var(--warn)">꺼짐</b> · 관리자가 기관 관리에서 켜야 해요`}</p>
+    ${lockOn() ? `<p class="hint">🔒 앱 잠금 켜짐 · 기관판은 잠금이 필수예요 (폰을 두고 자리를 비워도 기록이 안 보여요)</p>` : `<p style="color:var(--warn)"><b>🔒 앱 잠금을 켜야 시작할 수 있어요.</b> 기관판은 ${who()} 기록이 폰에 있어 잠금이 필수예요.</p>
+    <button class="btn primary block" data-inst="lock" style="margin-bottom:10px">앱 잠금 켜기 (PIN 4자리)</button>`}
     <div class="row" style="gap:8px"><button class="btn" data-inst="signout" style="flex:1;height:48px">로그아웃</button><button class="btn" data-inst="leave" style="flex:1;height:48px">이 폰에서 끄기</button></div>
     <p class="hint" style="margin:8px 0 0">로그아웃하면 기록은 폰에 남고 첫 화면으로 가요. ${isInstAdmin() ? "관리자 설정은 첫 화면 오른쪽 위 <b>🔑 관리자 모드</b>에서." : ""} "이 폰에서 끄기"는 기관 기록까지 지워요.</p>`;
   // 같은 id(instEmail 등)를 두 곳에 두면 $()가 엉키므로, 온보딩 화면이 보일 땐 거기에만, 아니면 설정에만 그린다
   const onboarding = !$("#onboardInst").hidden && $("#onboard").open;
   $("#instBox").innerHTML = onboarding ? "" : h;
   $("#obInstBox").innerHTML = onboarding ? h : "";
-  $("#obStart").disabled = !(o && s); if (onboarding && o && s) $("#obStart").scrollIntoView({ block: "nearest" });
+  $("#obStart").disabled = !(o && s && lockOn()); if (onboarding && o && s) $("#obStart").scrollIntoView({ block: "nearest" });
   if (o && s) {
     $("#pcBox").innerHTML = `<div class="inst-head"><div class="ico">🖥️</div><div class="spacer"><b>PC 받기함</b><div class="sub">폰에서 복사한 기록을 병원 PC 화면으로</div></div><span class="pill ${i.pc?.code ? "on" : "wait"}">${i.pc?.code ? "연결됨" : "연결 전"}</span></div>
       ${i.pc?.code ? `<p>코드 <b>${esc(i.pc.code.replace(/(.{4})(?=.)/g, "$1-"))}</b> · ${md(localDay(i.pc.at))}부터</p>
@@ -4105,6 +4174,7 @@ async function instAction(a) {
     return;
   }
   if (a === "pcOff") { delete i.pc; pcKeyCache = null; save(); paintInst(); toast("PC 연결을 끊었어요"); return; }
+  if (a === "lock") { if ($("#dlgSettings").open) $("#dlgSettings").close(); showLock("set1"); return; }
   if (a === "leave") { // 스스로 끌 때도 이 폰을 서버에서 차단하고 기관 기록을 지운다
     try { if (i.deviceRow && i.session) await sbUser(`/rest/v1/devices?id=eq.${i.deviceRow}`, { method: "PATCH", body: { revoked_at: new Date().toISOString() }, prefer: "return=minimal" }); } catch { /* 오프라인이어도 폰에서는 지운다 */ }
     await sbLogout(); wipeInst(`이 폰에서 기관판을 껐어요. 기관 ${who()} 기록을 지웠어요.`);
@@ -4693,7 +4763,7 @@ function showLock(mode) {
   if (!$("#lock").open) $("#lock").showModal();
   if (mode === "unlock" && canBio()) native.biometric();
 }
-function hideLock() { lockMode = null; pinBuf = ""; if ($("#lock").open) $("#lock").close(); }
+function hideLock() { const was = lockMode; lockMode = null; pinBuf = ""; if ($("#lock").open) $("#lock").close(); if (was === "unlock" && tab === "today") setTimeout(() => tipShow("home"), 400); }
 $("#lock").addEventListener("cancel", (e) => e.preventDefault()); // Esc로 닫히지 않게
 $("#keypad").innerHTML = [1, 2, 3, 4, 5, 6, 7, 8, 9, "", 0, "⌫"].map((k) => (k === "" ? "<span></span>" : `<button data-k="${k}" aria-label="${k === "⌫" ? "지우기" : k}">${k}</button>`)).join("");
 $("#keypad").onclick = async (e) => {
@@ -4710,7 +4780,7 @@ $("#keypad").onclick = async (e) => {
     const hash = await pinHash(pin);
     if (isLock) { db.settings.lock = { hash }; toast("앱 잠금을 켰어요"); }
     else { db.settings.student = { supHash: hash }; toast("실습생 모드를 켰어요. 기록을 완료하면 지도 치료사 확인을 기다려요."); }
-    save(); hideLock(); renderAll(); return;
+    save(); hideLock(); renderAll(); paintInst(); return; // 기관 연결 화면에서 켰으면 "시작하기"가 켜진다
   }
   if (lockMode === "supchk") {
     if ((await pinHash(pin)) === db.settings.student?.supHash) { const fn = supAction; supAction = null; hideLock(); fn?.(); return; }
@@ -4723,7 +4793,7 @@ $("#keypad").onclick = async (e) => {
   else $("#lockMsg").textContent = "PIN이 맞지 않아요";
 };
 $("#btnBio").onclick = () => native?.biometric();
-$("#btnLockCancel").onclick = () => { const m = lockMode; supAction = null; hideLock(); if (m !== "supchk") openSettings(); };
+$("#btnLockCancel").onclick = () => { const m = lockMode; supAction = null; hideLock(); if (m !== "supchk" && !$("#onboard").open) openSettings(); };
 window.otOnBiometric = (ok) => { if (ok && lockMode === "unlock") hideLock(); };
 function paintLock() {
   const la = Number(db.settings.lockAfter) || 1;
@@ -4733,6 +4803,7 @@ function paintLock() {
   $("#btnLock").textContent = lockOn() ? "끄기" : "켜기";
 }
 $("#btnLock").onclick = () => {
+  if (lockOn() && instOrg() && inst()?.session) { toast("기관판에서는 앱 잠금을 끌 수 없어요 (기관 기록 보호)"); return; }
   if (lockOn()) { delete db.settings.lock; save(); paintLock(); toast("앱 잠금을 껐어요"); return; }
   $("#dlgSettings").close(); showLock("set1");
 };
@@ -4994,8 +5065,9 @@ function leaveSplash() {
   if ($("#splash").hidden) return;
   $("#splash").hidden = true;
   if (!db.settings.role) { showRoleScreen(); return; }
-  if (!PERSONAL && !(instOrg() && inst()?.session) && db.settings.instSkipDay !== today()) { showOnboardInst(); return; }
+  if (!PERSONAL && (!(instOrg() && inst()?.session) || !lockOn()) && db.settings.instSkipDay !== today()) { showOnboardInst(); return; } // 기관 미연결이거나 앱 잠금이 꺼져 있으면 기관 연결 화면부터
   if (lockOn()) showLock("unlock");
+  setTimeout(() => { if (!$("#lock").open && tab === "today") tipShow("home"); }, 600);
   // 기록이 쌓였는데 2주 넘게 백업하지 않았으면 하루 한 번 알려 준다
   const finals = Object.values(db.days).reduce((n, d) => n + d.sessions.filter((s) => s.finalized).length, 0);
   const last = db.settings.lastBackup || db.settings.joinedAt;

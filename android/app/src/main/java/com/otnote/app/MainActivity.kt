@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -70,6 +71,8 @@ class MainActivity : AppCompatActivity() {
             }
             .build()
 
+        // 병원판: 화면 캡처·최근 앱 미리보기에 환자 기록이 남지 않게 막는다 (개인판은 사용자 본인 메모라 두지 않는다)
+        if (BuildConfig.FLAVOR == "hospital") window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         web = WebView(this)
         setContentView(web)
         // 휴대폰이 다크 모드여도 앱은 늘 흰 배경: 상태표시줄 아이콘을 어둡게, 웹 화면 자동 어둡게 하기를 끈다

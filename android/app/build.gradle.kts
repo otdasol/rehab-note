@@ -39,7 +39,7 @@ android {
         }
     }
 
-    buildFeatures { resValues = true } // 판마다 앱 이름을 다르게
+    buildFeatures { resValues = true; buildConfig = true } // 판마다 앱 이름을 다르게 · BuildConfig.FLAVOR로 병원판만 캡처 차단
 
     // 두 앱 모두 같은 키로 서명한다. 한 번 Play에 올린 뒤에는 이 키로만 업데이트할 수 있으니 절대 잃어버리지 말 것.
     signingConfigs {
