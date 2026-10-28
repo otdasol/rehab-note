@@ -1,0 +1,27 @@
+# AI 중계 함수가 살아 있는지 GitHub 러너에서 한 번 찔러 본다 (Claude 세션 컨테이너는 Supabase에 못 닿는다).
+# anon 키는 공개용이라 secrets가 아니다. 기관 토큰 없이 보내므로 개인판 경로(기관 확인 없음)로 처리된다.
+name: ai-smoke
+on:
+  workflow_dispatch:
+    inputs:
+      fn:
+        description: "함수 이름 (ai 또는 ai-next)"
+        default: "ai"
+      kind:
+        description: "경로 (chart/soap/record)"
+        default: "chart"
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 호출
+        run: |
+          set -e
+          KEY=$(python3 -c "import re;print(re.search(r'const RELAY_KEY = \"([^\"]+)\"', open('/dev/stdin').read()).group(1))" < <(curl -sL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/ot-note.html))
+          code=$(curl -s -o out.json -w "%{http_code}" -X POST "https://orlabcbhnarulribebvy.supabase.co/functions/v1/${{ inputs.fn }}/${{ inputs.kind }}" \
+            -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -H "x-device-id: gh-smoke-0001" -H "Content-Type: application/json" \
+            --data '{"role":"OT","text":"Dx: Rt. hemiplegia d/t Lt. MCA infarction\nC.C: 오른손이 안 움직임\nBP 130/80"}')
+          echo "HTTP $code"; cat out.json; echo
+          test "$code" = "200"
