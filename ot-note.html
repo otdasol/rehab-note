@@ -513,6 +513,7 @@
     <p class="onb-group">🏥 병원</p>
     <button class="role-card" data-role="OT"><span class="emo">🖐️</span><span class="spacer"><b style="font-size:17px">작업치료사</b><br><span class="muted small">ADL · 상지기능 · 인지 · 연하</span></span></button>
     <button class="role-card" data-role="PT"><span class="emo">🦵</span><span class="spacer"><b style="font-size:17px">물리치료사</b><br><span class="muted small">보행 · 균형 · 근력 · 통증 · 이학요법</span></span></button>
+    <button class="role-card" data-role="SLPA"><span class="emo">🗣️</span><span class="spacer"><b style="font-size:17px">언어재활사 (성인)</b><br><span class="muted small">실어증 · 마비말장애 · 연하</span></span></button>
     <p class="onb-group">🧸 아동발달센터</p>
     <div class="kid-roles">
       <button class="role-card kid-role" data-role="SI"><span class="emo">🛝</span><span><b>감각통합</b><br><span class="muted small">작업치료 · 감각조절 · 자조</span></span></button>
@@ -636,6 +637,19 @@ const CATALOGS = {
       { name: "COPM 수행도", max: 10 }, { name: "COPM 만족도", max: 10 }, { name: "MVPT", unit: "점" } ] },
   ],
   // 물리치료: 한국 병원 치료실에서 실제로 흔히 쓰는 도구만 둔다(설문지·연구용 도구는 뺐다). MMT·ROM은 관절·동작별로 줄을 만든다.
+  // 병원 언어치료(성인): 치료실에서 실제로 하는 평가만. 문항·채점 기준은 넣지 않는다.
+  SLPA: [
+    { group: "실어증", items: [
+      { name: "K-WAB AQ", max: 100 }, { name: "K-WAB 스스로 말하기", max: 20 }, { name: "K-WAB 알아듣기", max: 10 }, { name: "K-WAB 따라말하기", max: 10 }, { name: "K-WAB 이름대기", max: 10 },
+      { name: "K-BNT", max: 60 }, { name: "K-FAST", max: 30 } ] },
+    { group: "마비말장애·말실행증", items: [
+      { name: "조음 명료도", unit: "%" }, { name: "MPT 최대발성시간", unit: "초" }, { name: "DDK /pa/", unit: "회/초" }, { name: "DDK /ta/", unit: "회/초" }, { name: "DDK /ka/", unit: "회/초" },
+      { name: "말속도", unit: "음절/초" }, { name: "U-TAP 자음정확도", unit: "%" } ] },
+    { group: "연하", items: [
+      { name: "GUSS", max: 20 }, { name: "FOIS", max: 7 }, { name: "MASA", max: 200 }, { name: "임상삼킴평가 소견", text: true } ] },
+    { group: "인지·의사소통", items: [
+      { name: "K-MMSE", max: 30 }, { name: "MoCA-K", max: 30 }, { name: "CETI", max: 100 }, { name: "ASHA-NOMS", max: 7 } ] },
+  ],
   PT: [
     { group: "균형", items: [
       { name: "BBS", max: 56 }, { name: "TUG", unit: "초" }, { name: "5xSTS", unit: "초" }, { name: "FRT", unit: "cm" },
@@ -683,6 +697,9 @@ const ROLE = {
         example: "예: 두꺼운 손잡이 숟가락으로 콩 옮기기 10회 min A, 왼손 떨림 있음, 중간에 힘들다고 해서 2분 휴식." },
   PT: { name: "물리치료", short: "PT", hint: ["치료 종목·시간", "보행·균형 수행", "보조도구·보조 수준", "통증·활력징후", "다음 계획"],
         example: "예: 평행봉 보행 10m 4회 min A, 좌측 AFO 착용, 보행 후 무릎 통증 NRS 3." },
+  // 병원 언어치료(성인): 실어증·마비말장애·연하. 아동 언어치료(SLP, 센터)와 수가·평가도구·문장이 달라 직무를 따로 둔다.
+  SLPA: { name: "언어치료(병원·성인)", short: "언어", hint: ["과제·시간", "정반응/시도·단서 수준", "조음·발성·삼킴 관찰", "특이사항", "다음 계획"],
+        example: "예: 사물 이름대기 20개 중 12개 정반응(음소 단서 5회), 따라말하기 2어절 가능, 물 삼킴 시 사레 1회." },
 };
 
 // 작업치료 건강보험 수가 항목. 산정 기준은 심평원 고시·산정지침 요약이고, 코드는 병원 EMR과 맞는지 확인해서 쓴다.
@@ -713,6 +730,12 @@ const FEES = {
     { id: "MM051", name: "경추견인", rule: "Cervical traction", group: "물리요법" },
     { id: "MM052", name: "골반견인", rule: "Pelvic traction", group: "물리요법" },
     { id: "MM090", name: "맛사지치료", rule: "연부조직 위축·유착 개선 목적 수기 20분 이상", min: 20, group: "물리요법" },
+  ],
+  // 언어치료(성인): 코드는 병원 EMR 기준으로 확인해서 쓴다(여기서는 이름만).
+  SLPA: [
+    { id: "slp_tx", name: "언어치료", rule: "1:1, 30분 이상", min: 30, noCode: true },
+    { id: "slp_swallow", name: "연하장애재활치료", rule: "1:1, 30분 이상", min: 30, noCode: true },
+    { id: "slp_eval", name: "언어평가", rule: "초기·재평가 날에만", noCode: true },
   ],
 };
 const feeLabel = (f) => (f.noCode ? f.name : `${f.name}(${f.id})`);
@@ -808,8 +831,11 @@ const KID_PHRASES = {
 };
 const PAY_TYPES = ["발달재활 바우처", "언어발달지원", "영유아발달지원", "교육청 치료지원", "지자체 바우처", "자부담"];
 const KINDS = ["정규", "보강", "평가"];
-const assistList = () => (isCenter() ? KID_ASSIST : ASSIST);
-const responseList = () => (isCenter() ? KID_RESPONSE : RESPONSE);
+const SLPA_ASSIST = ["독립", "자가수정", "음소 단서", "의미 단서", "글자 단서", "모델링", "무반응"]; // 성인 언어치료는 보조 수준 대신 단서 수준
+const SLPA_RESPONSE = ["협조적", "동기 높음", "피로 호소", "좌절감 보임", "보속 반응", "반응 지연", "자가수정 시도", "집중 저하"];
+const assistList = () => (isCenter() ? KID_ASSIST : role() === "SLPA" ? SLPA_ASSIST : ASSIST);
+const responseList = () => (isCenter() ? KID_RESPONSE : role() === "SLPA" ? SLPA_RESPONSE : RESPONSE);
+const assistWord = () => (isCenter() ? "촉구" : role() === "SLPA" ? "단서" : "보조");
 const minutesList = () => (isCenter() ? [40, 50] : MINUTES);
 const won = (n) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 const payRate = () => Number(db.settings.payRate) || 0;
@@ -1243,11 +1269,11 @@ function composeRecord(s) {
   if (l.parentNote?.trim()) lines.push(`- 보호자 안내: ${l.parentNote.trim()}`);
   // 연하·보행은 아래 상세 문장에 이미 들어가므로 같은 말을 두 번 쓰지 않는다
   const gaitDetail = l.pt && (l.pt.aid.length || l.pt.dist || l.pt.reps);
-  const items = l.items.filter((x) => !(x === "연하 훈련" && hasSwal(l.swal)) && !(x === "보행 훈련" && gaitDetail));
+  const items = l.items.filter((x) => !((x === "연하 훈련" || x === "삼킴 훈련") && hasSwal(l.swal)) && !(x === "보행 훈련" && gaitDetail));
   if (items.length) lines.push(`- ${items.join(", ")} 시행함`);
   lines.push(...swalLines(l.swal), ...ptLines(l.pt));
   if (adlLine(l)) lines.push(adlLine(l));
-  if (l.assist) lines.push(`- ${l.assist} 수준으로 수행함`);
+  if (l.assist) lines.push(role() === "SLPA" ? `- ${l.assist === "독립" ? "단서 없이 수행함" : `${l.assist} 수준에서 수행함`}` : `- ${l.assist} 수준으로 수행함`);
   if (l.response.length) lines.push(`- 치료 중 ${l.response.join(", ")}`);
   if (l.note.trim()) lines.push(`- ${l.note.trim()}`);
   const memo = memoText(s);
@@ -1314,6 +1340,7 @@ async function relay(path, body, isForm, pid) {
   if (res.status === 429) throw new Error(`오늘 AI 사용 한도(${data.limit}회)를 다 썼어요. 내일 다시 쓸 수 있어요.`);
   if (res.status === 413) throw new Error("내용이 너무 길어요. 메모를 나눠서 남겨 주세요.");
   if (res.status === 422) throw new Error("AI가 이 내용을 처리하지 못했어요. 메모를 확인해 주세요.");
+  if (res.status === 400) throw new Error("AI 서버가 아직 이 기능을 몰라요. 서버 업데이트 뒤 다시 해 주세요.");
   throw new Error("AI 연결에 실패했어요. 잠시 후 다시 시도해 주세요.");
 }
 
@@ -1947,6 +1974,8 @@ const LOG_ITEMS = {
   // 물리요법 장비(HP·ICT·TENS·US 등)는 '물리치료 상세' 카드에서 부위와 함께 고른다
   PT: ["운동치료", "보행 훈련", "균형 훈련", "매트 운동", "이동·전이 훈련", "근력 강화 운동", "ROM 운동", "스트레칭",
        "계단 훈련", "호흡 운동", "보조도구 훈련", "보호자 교육"],
+  SLPA: ["이름대기 훈련", "따라말하기 훈련", "청각적 이해 훈련", "읽기·쓰기 훈련", "문장 산출 훈련", "대화·화용 훈련",
+       "호흡·발성 훈련", "조음 훈련", "운율·말속도 훈련", "구강운동", "삼킴 훈련", "식이·보상전략 교육", "AAC 적용", "인지-의사소통 훈련", "보호자 교육"],
   ...KID_ACTS, // 센터 직무는 그룹 기록 등에서 같은 활동 목록을 쓴다
 };
 const ASSIST = ["indep", "mod I", "SBA", "CGA", "min A", "mod A", "max A", "dep"];
@@ -2072,7 +2101,7 @@ const SWAL = {
 const SWAL_ONE = ["place", "smin", "diet", "liquid"]; // 하나만 고르는 항목
 function swalOf(s) { return (s.log.swal ||= { stimOn: false, place: "", ch1: "", ch2: "", smin: "", task: [], oral: [], diet: "", liquid: "", strategy: [], signs: [] }); }
 const hasSwal = (w) => !!w && (w.stimOn || w.oral.length || w.diet || w.liquid || w.strategy.length || w.signs.length);
-const showSwal = (s) => role() === "OT" && (s.log.fees.includes("swallow") || s.log.items.includes("연하 훈련") || hasSwal(s.log.swal));
+const showSwal = (s) => ["OT", "SLPA"].includes(role()) && (s.log.fees.includes("swallow") || s.log.fees.includes("slp_swallow") || s.log.items.includes("연하 훈련") || s.log.items.includes("삼킴 훈련") || hasSwal(s.log.swal));
 /** 연하치료 내용을 치료기록 문장으로 */
 function swalLines(w) {
   if (!hasSwal(w)) return [];
@@ -2130,6 +2159,12 @@ const SOAP_GUIDE = {
 };
 // 탭해서 넣는 완성된 상용구 (빈칸 없음)
 const PHRASES = {
+  SLPA: {
+    S: ["말이 잘 안 나온다고 함", "이름이 생각 안 난다고 함", "발음이 어눌하다고 함", "삼킬 때 사레 든다고 함", "보호자 보고상 병동에서 의사소통 비슷함", "치료 의욕 보임"],
+    O: ["음소 단서 제공함", "의미 단서 제공함", "모델링 후 산출함", "그림카드 사용함", "글자 단서 제공함", "느린 말속도로 지시함", "턱 당기기 자세 적용함", "점도 조절 액체 사용함"],
+    A: ["이름대기 정반응률 향상됨", "따라말하기 길이 증가함", "청각적 이해 유지됨", "조음 명료도 향상됨", "발성 지속시간 증가함", "삼킴 시 사레 감소함", "자발화 길이 증가함", "보속 반응 관찰됨"],
+    P: ["현 과제 지속하며 단서 수준 낮출 예정", "문장 수준으로 난이도 상향 예정", "보호자 의사소통 전략 교육 예정", "식이 단계 상향 검토 예정", "주 5회 30분 치료 지속", "2주 후 재평가 예정"],
+  },
   OT: {
     S: ["통증 호소함", "피로감 호소함", "혼자 식사하고 싶다고 함", "보호자 보고상 병동 내 수행 비슷함", "수면 양호하다고 함", "치료 의욕 보임"],
     O: ["verbal cue 제공함", "tactile cue 제공함", "demonstration 후 수행함", "앉은 자세에서 수행함", "선 자세에서 수행함", "Lt. hand 떨림 관찰됨", "Rt. hand 떨림 관찰됨", "피로로 휴식 후 재개함"],
@@ -2182,6 +2217,7 @@ $("#reportList").addEventListener("click", (e) => {
 // 임상 문장은 대부분 [영역] + [수준·변화] + [끝맺음]으로 되어 있다. 영역을 누르고 내용을 누르면 한 줄이 완성돼 들어간다.
 // 접두사·접미사를 따로 고르는 것보다 손이 덜 가고, "~함/~보임/~필요함/~예정임" 끝맺음이 섞이지 않는다.
 const PB_DOMAINS = {
+  SLPA: ["이름대기", "따라말하기", "청각적 이해", "읽기", "쓰기", "자발화", "조음 명료도", "발성", "호흡 지지", "운율·말속도", "삼킴", "의사소통 효율", "대화 참여"],
   OT: ["식사", "옷 입기", "세면·위생", "화장실", "목욕", "침상 이동", "이동·전이", "상지 기능", "손 기능", "인지", "시지각", "연하"],
   PT: ["보행", "균형", "이동·전이", "계단", "앉기·서기", "침상 이동", "근력", "관절가동범위", "지구력", "통증", "자세 조절"],
   SI: ["감각 조절", "자세 조절", "운동 계획", "소근육", "대근육", "자조(식사·옷 입기)", "놀이 참여", "주의 집중", "정서 조절", "또래 상호작용"],
@@ -2284,6 +2320,7 @@ function feeWarnings(s) {
 
 // ---------- 치료 아이디어 (초보 치료사 가이드) ----------
 const FOCUS = {
+  SLPA: ["자동", "실어증", "마비말장애", "연하", "인지-의사소통", "보호자 교육"],
   OT: ["자동", "상지기능", "ADL", "인지", "연하", "소근육", "보호자 교육"],
   PT: ["자동", "보행", "균형", "근력", "ROM·통증", "이동·전이", "보호자 교육"],
   ...KID_FOCUS,
@@ -2434,7 +2471,7 @@ function renderSheetInner() {
         ${shownItems.length < items.length ? `<button class="chip" data-x="moreItems" style="margin-top:6px">+ 나머지 ${items.length - shownItems.length}개 더 보기</button>` : ""}
         <div class="row" style="margin-top:8px"><input id="customItem" placeholder="목록에 없는 치료"><button class="btn" data-x="addItem">추가</button></div></div>`}
       ${swalCard(s)}${ptCard(s)}${adlCard(s)}
-      <div class="card"><b>${isCenter() ? "촉구 수준" : "보조 수준"}</b>
+      <div class="card"><b>${assistWord()} 수준</b>
         <div class="chips" style="margin-top:8px">${assistList().map((v) => `<button class="chip ${l.assist === v ? "on" : ""}" data-log="assist" data-v="${esc(v)}">${assistChip(v)}</button>`).join("")}</div>
         <b style="display:block;margin-top:14px">${isCenter() ? "아동 반응" : "대상자 반응"}</b>
         <div style="margin-top:8px">${chipRow(responseList(), "response", (v) => l.response.includes(v))}</div>
@@ -5132,7 +5169,7 @@ $("#btnSettings").onclick = openSettings;
 $("#setBig").onchange = (e) => { db.settings.bigText = e.target.checked; save(); document.documentElement.classList.toggle("big", e.target.checked); };
 $("#setRole").onclick = (e) => { const b = e.target.closest("button"); if (b) { draftRole = b.dataset.r; paintRole(); } };
 // 상단 직무 배지 → 직무 바꾸기 (감각통합·언어처럼 두 가지 하는 치료사용). 환자·일정은 그대로, 회기에 직무가 남는다.
-const ROLE_ORDER = ["OT", "PT", ...CENTER_ROLES];
+const ROLE_ORDER = ["OT", "PT", "SLPA", ...CENTER_ROLES];
 $("#roleChip").onclick = () => {
   $("#roleGrid").innerHTML = ROLE_ORDER.filter((r) => ROLE[r]).map((r) => `<button class="chip ${r === role() ? "on" : ""}" data-role2="${r}" style="height:46px;padding:0 16px;font-size:15px">${esc(ROLE[r].name)}</button>`).join("");
   $("#dlgRole").showModal();
