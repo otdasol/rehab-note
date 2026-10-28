@@ -21,7 +21,7 @@
 - 판 구분: `const EDITION` 줄. 빌드가 이 줄을 바꾸고, 개인판은 `RELAY_URL`·`RELAY_KEY`·`SB_URL`을 비우고 `cdn.jsdelivr` 줄을 지운다 (`android/app/build.gradle.kts`의 `webUi`). JS에서는 `PERSONAL`일 때 `inst()`·`instOrg()`는 null, `aiOn()`은 false.
 - `android/app/src/personal/AndroidManifest.xml`: INTERNET·RECORD_AUDIO·알림·녹음 서비스 권한 제거. 남는 건 생체인증뿐.
 - 개인정보처리방침: 개인판 `privacy-personal.html`, 병원판 `privacy.html`.
-- 서버: Supabase 프로젝트 `orlabcbhnarulribebvy`. AI 중계 edge function `ai` = `server/functions/ai/index.ts` (배포본 v18; 저장소에는 v19 = `chart` 처리 추가, **아직 배포 전** — Claude 세션에서 배포가 '운영 배포'로 막히면 사용자가 허용해야 한다). DB 기록은 `server/migrations/README.md`.
+- 서버: Supabase 프로젝트 `orlabcbhnarulribebvy`. AI 중계 edge function `ai` = `server/functions/ai/index.ts` (배포본 **v19** = `chart` 처리·SLPA 규칙, 2026-10-28 배포). DB 기록은 `server/migrations/README.md`.
 - `src/<flavor>/assets`는 빌드 때 만들어지므로 git에 없다.
 
 ## 빌드·설치 (안드로이드 SDK가 있는 집 PC에서)
@@ -82,7 +82,7 @@ git tag v0.23; git push origin v0.23
 - Opus 쓰지 않는다. `cheap`=Haiku 5.5(말한 내용 칸별 나누기·안내문), `write`=Sonnet 5.5 effort low(SOAP·기록·검토), `think`=Sonnet 5.5 effort medium(보고서 전문가 초안 `report_mode=draft`·중재 추천·슈퍼비전).
 - AI의 가치: 최소 정보로 전문가 수준 보고서, 질 높은 중재 추천. 입력에 없는 사실은 지어내지 않고 "[확인 필요: …]", 추론은 "(제안)".
 - 음성 받아쓰기: `gpt-4o-mini-transcribe` + 임상 약어 힌트, 실패 시 `whisper-1`.
-- edge function 배포는 **파일 전체**를 붙여 넣는다 (자리표시 내용으로 배포 금지).
+- edge function 배포 방법(2026-10-28부터): 파일이 커서(65KB) 통째로 붙여 넣으면 출력 한도에 걸린다 → 저장소에 푸시한 뒤, 배포하는 index.ts는 **한 줄 shim** `import "https://raw.githubusercontent.com/otdasol/rehab-note/<커밋 SHA>/server/functions/ai/index.ts";` 로 한다(Supabase가 배포 때 묶어 두므로 실행 중 GitHub에 의존하지 않는다). 순서: ① `ai-next`에 먼저 배포 → ② Actions `ai-smoke`(`gh api ... workflows/ai-smoke.yml/dispatches -f 'inputs[fn]=ai-next' -f 'inputs[kind]=chart'`, 결과는 check-run annotation) → ③ 200이면 같은 shim을 `ai`에 배포. 새 kind를 추가하면 `ai_usage.kind` CHECK 제약도 마이그레이션으로 넓혀야 한다(안 하면 502 upstream, 로그엔 "chart Error"). 배포가 '운영 배포'로 막히면 사용자가 "배포 허용"이라고 해야 한다. `ai-next`는 시험용 함수로 남아 있다(지우는 도구 없음).
 - AI 키는 Supabase 서버 비밀값에만 있다. HTML의 `RELAY_KEY`는 공개용 anon 키.
 
 ## 지켜야 할 것

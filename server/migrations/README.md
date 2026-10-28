@@ -28,3 +28,4 @@ select version, name, statements from supabase_migrations.schema_migrations orde
 | 20261026 | org_show_names | `organizations.show_names`(기본 false): 치료사 폰 안에서 환자 이름 표시 허용 여부 |
 | 20261026 | org_show_names_update_grant | 관리자가 `organizations.show_names`를 바꿀 수 있게 칸 단위 update 권한 추가 (빠져 있어서 토글이 "권한이 없어요"로 실패했음) |
 | 20261026 | audit_org_show_names | 기관 설정 감사 트리거에 show_names 포함 |
+| 20261028 | ai_usage_kind_chart | `ai_usage.kind` 허용값에 `chart`(차트 사진 글 정리) 추가 |
