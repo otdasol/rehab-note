@@ -941,22 +941,35 @@ function idbDel(key) {
 function idbKeys() {
   return new Promise((done) => { try { const q = idb.transaction("kv").objectStore("kv").getAllKeys(); q.onsuccess = () => done(q.result || []); q.onerror = () => done([]); } catch { done([]); } });
 }
+// 안드로이드에서는 저장 글 전체를 키스토어 키(AES-GCM)로 잠가 둔다. "enc1:" 머리말이 붙은 글은 폰이 열어 준다.
+let vaultFailed = false; // 잠긴 기록을 못 연 상태 — 덮어쓰지 않도록 저장을 멈춘다
+const vaultOn = () => !!(window.OTNative?.seal && window.OTNative?.open);
+function unseal(kept) {
+  if (!kept.startsWith("enc1:")) return kept;
+  if (!vaultOn()) { vaultFailed = true; return null; }
+  const out = window.OTNative.open(kept.slice(5)); if (out == null) vaultFailed = true; return out;
+}
 async function load() {
-  const kept = idb ? await idbGet(KEY) : null;
+  let kept = idb ? await idbGet(KEY) : null;
+  if (kept) kept = unseal(kept);
   if (kept) { try { return JSON.parse(kept); } catch { /* 깨졌으면 예전 저장소를 본다 */ } }
+  if (vaultFailed) return {};
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
 }
 const db = Object.assign({ settings: {}, days: {} }, await load());
 navigator.storage?.persist?.().catch(() => {}); // 폰이 저장 공간을 정리할 때 지우지 않게 요청
 if (db.settings.role && !db.settings.joinedAt) db.settings.joinedAt = new Date().toLocaleDateString("sv-SE"); // 이전 버전 사용자는 오늘이 1일차
 if (!db.settings.deviceId) db.settings.deviceId = crypto.randomUUID();
-setTimeout(() => photoGc().catch(() => {}), 8000); // 작품 사진 중 어디서도 안 쓰는 것 정리
+setTimeout(() => photoGc().catch(() => {}), 8000);
+if (vaultFailed) setTimeout(() => toast("잠긴 기록을 열 수 없어요. 앱을 껐다 켜 보고, 계속 그러면 문의해 주세요. 새 기록은 저장되지 않아요."), 1500); // 작품 사진 중 어디서도 안 쓰는 것 정리
 const role = () => db.settings.role || "OT";
 const catalog = () => CATALOGS[role()];
 let saving = Promise.resolve();
 /** 저장은 순서대로 이어서 한다. 끝났는지 기다려야 하는 곳(복원 후 새로고침)은 돌려받은 약속을 기다린다. */
 function save() {
-  const text = JSON.stringify(db);
+  if (vaultFailed) return saving; // 못 연 기록 위에 빈 기록을 덮어쓰지 않는다
+  let text = JSON.stringify(db);
+  if (vaultOn()) { const sealed = window.OTNative.seal(text); if (sealed) text = `enc1:${sealed}`; }
   if (!idb) { try { localStorage.setItem(KEY, text); } catch { toast("저장 공간에 저장하지 못했습니다"); } return saving; }
   saving = saving.then(() => idbPut(KEY, text))
     .then(() => { try { localStorage.removeItem(KEY); } catch { /* 예전 저장소 정리는 다음에 */ } })

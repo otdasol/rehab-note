@@ -356,6 +356,13 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        /** 저장할 기록을 키스토어 키로 잠근다/연다 (동기 호출). 못 열면 null. */
+        @JavascriptInterface
+        fun seal(text: String): String? = Vault.seal(text)
+
+        @JavascriptInterface
+        fun open(blob: String): String? = Vault.open(blob)
+
         /** 차트 사진(JPEG base64)을 폰 안에서 글로 바꾼다. 결과는 otOnOcr(글, 오류). 사진은 메모리에만 두고 임시 파일은 지운다. */
         @JavascriptInterface
         fun ocr(jpegBase64: String) {
