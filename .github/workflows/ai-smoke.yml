@@ -19,9 +19,9 @@ jobs:
       - name: 호출
         run: |
           set -e
-          KEY=$(python3 -c "import re;print(re.search(r'const RELAY_KEY = \"([^\"]+)\"', open('/dev/stdin').read()).group(1))" < <(curl -sL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/ot-note.html))
+          KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ybGFiY2JobmFydWxyaWJlYnZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4Mzk5NTEsImV4cCI6MjEwODQxNTk1MX0.Y0hTTjjhm7qIXmxcry3rur4YCjFyzCE_Skx7RMfYKWw"  # 공개용 anon 키 (앱 안에도 들어 있다)
           code=$(curl -s -o out.json -w "%{http_code}" -X POST "https://orlabcbhnarulribebvy.supabase.co/functions/v1/${{ inputs.fn }}/${{ inputs.kind }}" \
             -H "Authorization: Bearer $KEY" -H "apikey: $KEY" -H "x-device-id: gh-smoke-0001" -H "Content-Type: application/json" \
             --data '{"role":"OT","text":"Dx: Rt. hemiplegia d/t Lt. MCA infarction\nC.C: 오른손이 안 움직임\nBP 130/80"}')
-          echo "HTTP $code"; cat out.json; echo
+          echo "::notice title=ai-smoke::HTTP $code $(head -c 600 out.json)"
           test "$code" = "200"
