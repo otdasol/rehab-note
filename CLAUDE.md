@@ -21,7 +21,7 @@
 - 판 구분: `const EDITION` 줄. 빌드가 이 줄을 바꾸고, 개인판은 `RELAY_URL`·`RELAY_KEY`·`SB_URL`을 비우고 `cdn.jsdelivr` 줄을 지운다 (`android/app/build.gradle.kts`의 `webUi`). JS에서는 `PERSONAL`일 때 `inst()`·`instOrg()`는 null, `aiOn()`은 false.
 - `android/app/src/personal/AndroidManifest.xml`: INTERNET·RECORD_AUDIO·알림·녹음 서비스 권한 제거. 남는 건 생체인증뿐.
 - 개인정보처리방침: 개인판 `privacy-personal.html`, 병원판 `privacy.html`.
-- 서버: Supabase 프로젝트 `orlabcbhnarulribebvy`. AI 중계 edge function `ai` = `server/functions/ai/index.ts` (현재 v18, 2026-10-26: ideas/supervise에 `theory`, PT 규칙에 FITT·WB). DB 기록은 `server/migrations/README.md`.
+- 서버: Supabase 프로젝트 `orlabcbhnarulribebvy`. AI 중계 edge function `ai` = `server/functions/ai/index.ts` (배포본 v18; 저장소에는 v19 = `chart` 처리 추가, **아직 배포 전** — Claude 세션에서 배포가 '운영 배포'로 막히면 사용자가 허용해야 한다). DB 기록은 `server/migrations/README.md`.
 - `src/<flavor>/assets`는 빌드 때 만들어지므로 git에 없다.
 
 ## 빌드·설치 (안드로이드 SDK가 있는 집 PC에서)
@@ -139,6 +139,18 @@ git tag v0.23; git push origin v0.23
 - **직무 전환**: 상단 배지(`#roleChip`) → `#dlgRole`. 회기는 기록할 때 `s.role`을 남기고, 현재 직무와 다르면 슬롯 카드에 짧은 배지. 환자·일정은 공유.
 - **이름 표시**: `organizations.show_names`(관리자 토글, 기본 꺼짐). `namesOn()` = 기관 허용 + 앱 잠금 켜짐일 때만 환자 카드에 `p.name` 입력·표시(`pname()`), 기록 글·AI·PC·복사본에는 절대 넣지 않는다(`slotName`·`sessionText`는 라벨만). 방침 1절 반영.
 - 병원판 로고는 선글라스 판 `design/logo-ai.png`(런처 아이콘에서 잘라 만듦; 시작 화면 그림 `startpage.png`는 사용자 파일이라 그대로 — 선글라스 판은 사용자가 주면 교체).
+
+## 완성품 흐름 · 코치 노트 · 차트 사진 (0.28, 2026-10-28)
+
+- 사용자 원칙: "AI 버튼을 남발하지 말고 완성품 만들기 식으로. 마이크도 최소화." → 병원판 **기록 완료 한 번**(`finishWithAi`)이 AI 문장 정리 → (확인 질문 없으면) 완료 → 평가 점수가 있는 날은 SOAP까지 만든다(`needSoap`, `finishExtras`). 완료 뒤 맨 위 `doneCard`(치료기록·SOAP·전체 복사). AI 실패 시 `s.aiFailed`로 두 번째 누름은 고른 내용 그대로 완료.
+- "AI로 문장 정리"·"AI로 SOAP 초안" 버튼은 뺐다(SOAP 탭에 "지금 SOAP 만들기"만 보조로). **코치 노트**(`ideasCard`, details 카드) = 예전 치료 아이디어; 환자 카드의 슈퍼비전은 "코치 노트 · 케이스 상담"으로 이름만 바꿔 정체·고민 때만. 사용자 지적: 아이디어와 슈퍼비전 구분이 안 됐다.
+- 마이크: 회기 메모 1곳(+홈 가운데 버튼, 같은 기능) · 보고서 받아쓰기 1곳. 평가 도구별 마이크, 보고서 칸별 "이 칸에 말로"는 뺐다. 보고서 받아쓰기는 끝나면 `sortReport`가 **자동**으로 칸별로 나눈다.
+- 기록 탭: "오늘 한 치료" 칩은 고른 것+앞 8개만, "+ 나머지 더 보기"(`itemsMore`). 지난 회기와 같게 채우기 버튼 강조(`.prev-btn`).
+- 첫 사용 말풍선 3개(`TIPS`/`tipShow`: home·record·done, `settings.tips`에 본 날짜). `#tipBubble` popover.
+- 기관판 앱 잠금 필수: 기관 연결 화면 "시작하기"는 `lockOn()`이어야 켜짐(`data-inst="lock"` 버튼), 기관 연결 중엔 설정에서 잠금 못 끔, 앱 시작 때 잠금 꺼져 있으면 기관 연결 화면으로. 병원판 안드로이드 `FLAG_SECURE`(캡처·최근 앱 미리보기 차단, `BuildConfig.FLAVOR`).
+- **차트 사진**(병원판·AI 켜짐): 세션 정보 카드 "📷 차트 사진으로 진단명·주호소 채우기" → `pickChartPhoto` → 사진을 폰 안에서 글로(안드로이드 `OTNative.ocr` = ML Kit 한국어 `src/hospital/.../Ocr.kt`, 개인판은 stub; 웹은 Tesseract.js `TESS_URL`) → `maskChart`(성명·등록번호·주민·연락처·주소 줄 값 지움 + `maskPII` + 5자리 이상 숫자) → **치료사가 지운 글 확인**(`#dlgChart` ① 단계) → `relay("chart")`(cheap) → ② 결과 확인·수정 → `chartApply`: `s.dx`(환자 dx 비었으면 같이)·`s.precaution`·SOAP S(주호소)·O(발병일·사실·약). 사진 파일은 폰 밖으로 안 나가고 글만(지운 뒤) 간다. 안드로이드 파일 선택은 `WebChromeClient.onShowFileChooser`(갤러리 + 카메라 `FileProvider ${applicationId}.charts`, 캐시 `charts/`, OCR 뒤 삭제). 의존성 `hospitalImplementation("com.google.mlkit:text-recognition-korean:16.0.1")`.
+- 시험 빌드: 태그 없이 `gh api -X POST repos/otdasol/rehab-note/actions/workflows/release-apk.yml/dispatches -f ref=main -f 'inputs[release]=false'` → Actions › Artifacts(14일). `gh workflow run`은 GraphQL이라 세션에서 안 된다.
+- 모의 테스터 피드백 문서(11개 분야·우선순위): Claude Docs https://claude.ai/artifact/5jd4JNrTk2JYQCJFK2joKF
 
 ## 보고서 기능 (핵심)
 
