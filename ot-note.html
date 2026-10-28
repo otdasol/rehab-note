@@ -338,6 +338,10 @@
   .tip-bubble .tip-face { width: 40px; height: 40px; border-radius: 12px; flex: none; }
   .act-num { min-width: 22px; text-align: center; font-size: 16px; }
   .act-count .chip { height: 32px; padding: 0 10px; font-size: 13px; }
+  .photo-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+  .photo-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-x { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; font-size: 14px; line-height: 22px; text-align: center; }
   .done-card { border-color: var(--ok); background: var(--ok-soft); }
   .prev-btn { height: 48px; border-color: var(--primary); color: var(--primary); }
   .coach-card summary { cursor: pointer; list-style: none; } .coach-card summary::-webkit-details-marker { display: none; }
@@ -848,6 +852,34 @@ const ACT_TAGS = {
   COG: ["주의 지속", "주의 분산", "자기 수정", "전략 사용", "피로"],
 };
 const ACT_LEVELS = ["쉬움", "적정", "어려움"];
+// ---------- 작품 사진 (미술치료) ----------
+// 작품만 찍어 이 폰 안에만 둔다(IndexedDB `photo:` 키, 긴 변 720px JPEG). 기록 글·AI·PC·복사·백업 어디에도 들어가지 않는다.
+// 아동 얼굴은 찍지 않도록 안내한다. 활동을 빼거나 1년 지난 기록을 지울 때 함께 지운다.
+const PHOTO_ROLES = new Set(["ART"]);
+const photoCache = {}; // id → dataURL (화면 표시용)
+async function photoUrl(id) { if (!id) return ""; if (photoCache[id] === undefined) photoCache[id] = (idb && await idbGet(`photo:${id}`)) || ""; return photoCache[id]; }
+async function addActPhoto(s, i, file) {
+  if (!idb) { toast("이 브라우저에서는 사진을 둘 수 없어요"); return; }
+  const c = await shrinkImage(file, 720).catch(() => null); if (!c) { toast("사진을 열지 못했어요"); return; }
+  const id = crypto.randomUUID(); const url = c.toDataURL("image/jpeg", 0.8);
+  await idbPut(`photo:${id}`, url); photoCache[id] = url;
+  const a = s.log.acts[i]; (a.photos ||= []).push(id); save(); renderSheet();
+}
+async function delPhoto(id) { delete photoCache[id]; if (idb) await idbDel(`photo:${id}`); }
+/** 어떤 기록에서도 더는 가리키지 않는 사진을 지운다 (앱 시작 때 한 번) */
+async function photoGc() {
+  if (!idb) return;
+  const used = new Set(); for (const d of Object.values(db.days)) for (const x of d.sessions) for (const a of x.log?.acts || []) for (const id of a.photos || []) used.add(id);
+  for (const k of await idbKeys()) if (typeof k === "string" && k.startsWith("photo:") && !used.has(k.slice(6))) await idbDel(k);
+}
+function photoStrip(a, i) {
+  if (!PHOTO_ROLES.has(role())) return "";
+  const ids = a.photos || [];
+  return `<div class="photo-strip">${ids.map((id) => `<div class="photo-thumb" data-pid="${id}"><img alt="작품" data-photo="${id}"><button class="photo-x" data-photodel="${i}" data-id="${id}" aria-label="사진 빼기">×</button></div>`).join("")}
+    <button class="chip" data-actphoto="${i}" style="height:36px;padding:0 12px;font-size:13px">📷 작품 사진</button>
+    ${ids.length ? "" : `<span class="muted small" style="align-self:center">작품만 · 이 폰에만 남아요 · 얼굴은 찍지 마세요</span>`}</div>`;
+}
+async function paintPhotos() { for (const img of document.querySelectorAll("img[data-photo]")) { if (!img.src) img.src = await photoUrl(img.dataset.photo); } }
 
 // 휴대폰 앱(안드로이드) 안에서 열렸을 때만 존재하는 네이티브 연결
 const native = window.OTNative || null;
@@ -877,6 +909,12 @@ function idbPut(key, value) {
     tx.oncomplete = () => done(); tx.onerror = tx.onabort = () => fail(tx.error);
   });
 }
+function idbDel(key) {
+  return new Promise((done) => { try { const tx = idb.transaction("kv", "readwrite"); tx.objectStore("kv").delete(key); tx.oncomplete = tx.onerror = tx.onabort = () => done(); } catch { done(); } });
+}
+function idbKeys() {
+  return new Promise((done) => { try { const q = idb.transaction("kv").objectStore("kv").getAllKeys(); q.onsuccess = () => done(q.result || []); q.onerror = () => done([]); } catch { done([]); } });
+}
 async function load() {
   const kept = idb ? await idbGet(KEY) : null;
   if (kept) { try { return JSON.parse(kept); } catch { /* 깨졌으면 예전 저장소를 본다 */ } }
@@ -886,6 +924,7 @@ const db = Object.assign({ settings: {}, days: {} }, await load());
 navigator.storage?.persist?.().catch(() => {}); // 폰이 저장 공간을 정리할 때 지우지 않게 요청
 if (db.settings.role && !db.settings.joinedAt) db.settings.joinedAt = new Date().toLocaleDateString("sv-SE"); // 이전 버전 사용자는 오늘이 1일차
 if (!db.settings.deviceId) db.settings.deviceId = crypto.randomUUID();
+setTimeout(() => photoGc().catch(() => {}), 8000); // 작품 사진 중 어디서도 안 쓰는 것 정리
 const role = () => db.settings.role || "OT";
 const catalog = () => CATALOGS[role()];
 let saving = Promise.resolve();
@@ -2358,7 +2397,8 @@ function openSheet(id, tabName) {
 function chipRow(list, key, on, label = (v) => v) {
   return `<div class="chips">${list.map((v) => `<button class="chip ${on(v) ? "on" : ""}" data-log="${key}" data-v="${esc(v)}">${esc(label(v))}</button>`).join("")}</div>`;
 }
-function renderSheet() {
+function renderSheet() { renderSheetInner(); if (PHOTO_ROLES.has(role())) paintPhotos(); }
+function renderSheetInner() {
   const s = findSession(sheetFor); if (!s) return;
   const isRec = recording?.id === s.id;
   const isBusy = s.status === "busy";
@@ -2586,7 +2626,7 @@ $("#sheet").addEventListener("click", (e) => {
   }
   if (b.dataset.cat) { catGroup = b.dataset.cat; renderSheet(); return; }
   if (b.dataset.focus) { s.ideasFocus = b.dataset.focus; save(); renderSheet(); return; }
-  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.actcnt || b.dataset.actp || b.dataset.actlv || b.dataset.acttag || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
+  if (b.dataset.act || b.dataset.actmin || b.dataset.actdel || b.dataset.actcnt || b.dataset.actp || b.dataset.actlv || b.dataset.acttag || b.dataset.actphoto !== undefined || b.dataset.photodel !== undefined || b.dataset.kind || b.dataset.x === "addAct") { onActClick(s, b); return; }
   if (b.dataset.pt) {
     const p = ptOf(s); const k = b.dataset.pt; const v = b.dataset.v;
     if (k === "stairs") p.stairs = !p.stairs;
@@ -4593,7 +4633,7 @@ function actsCard(s) {
       <div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">촉구</span>${ACT_PROMPTS.map((v) => `<button class="chip ${a.prompt === v ? "on" : ""}" data-actp="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>
       <div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">난이도</span>${ACT_LEVELS.map((v) => `<button class="chip ${a.level === v ? "on" : ""}" data-actlv="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>
       ${(ACT_TAGS[role()] || []).length ? `<div class="chips" style="margin-top:6px;gap:6px"><span class="small muted" style="align-self:center">${role() === "SI" ? "감각 반응" : role() === "PLAY" ? "놀이 주제" : role() === "ART" ? "표현" : "관찰"}</span>${ACT_TAGS[role()].map((v) => `<button class="chip ${a.tags?.includes(v) ? "on" : ""}" data-acttag="${i}" data-v="${esc(v)}" style="height:30px;padding:0 10px;font-size:13px">${esc(v)}</button>`).join("")}</div>` : ""}
-      <input data-actnote="${i}" value="${esc(a.note || "")}" placeholder="반응 (예: 웃으며 '또' 요구 2회)" style="margin-top:6px"></div>`).join("")}
+      <input data-actnote="${i}" value="${esc(a.note || "")}" placeholder="반응 (예: 웃으며 '또' 요구 2회)" style="margin-top:6px">${photoStrip(a, i)}</div>`).join("")}
     ${acts.length ? `<label class="field" style="margin:12px 0 0">보호자 안내 · 오늘 집에서 할 것 <input data-logf="parentNote" value="${esc(s.log.parentNote || "")}" placeholder="예: 그네 대신 담요 흔들기 5분, 숟가락은 손 위에 손"></label>` : ""}
   </div>`;
 }
@@ -4610,7 +4650,9 @@ function onActClick(s, b) {
   if (b.dataset.actp) { const a = l.acts[+b.dataset.actp]; a.prompt = a.prompt === b.dataset.v ? "" : b.dataset.v; }
   if (b.dataset.actlv) { const a = l.acts[+b.dataset.actlv]; a.level = a.level === b.dataset.v ? "" : b.dataset.v; }
   if (b.dataset.acttag) { const a = l.acts[+b.dataset.acttag]; a.tags ||= []; a.tags = a.tags.includes(b.dataset.v) ? a.tags.filter((x) => x !== b.dataset.v) : [...a.tags, b.dataset.v]; }
-  if (b.dataset.actdel) l.acts.splice(+b.dataset.actdel, 1);
+  if (b.dataset.actphoto !== undefined) { const i = +b.dataset.actphoto; const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.onchange = () => { const f = inp.files?.[0]; if (f) addActPhoto(s, i, f); }; inp.click(); return; }
+  if (b.dataset.photodel !== undefined) { const a = l.acts[+b.dataset.photodel]; a.photos = (a.photos || []).filter((x) => x !== b.dataset.id); delPhoto(b.dataset.id); }
+  if (b.dataset.actdel) { for (const id of l.acts[+b.dataset.actdel].photos || []) delPhoto(id); l.acts.splice(+b.dataset.actdel, 1); }
   if (!s.finalized && s.status !== "busy") settle(s);
   save(); renderSheet(); renderSummary();
 }
