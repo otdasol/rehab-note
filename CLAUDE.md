@@ -34,7 +34,7 @@ adb install -r --user 0 android\app\build\outputs\apk\hospital\debug\app-hospita
 ```
 
 - 설치는 항상 `--user 0` (듀얼 앱 프로필 user 95에 깔리면 권한·데이터가 따로라 혼란).
-- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 29 / 0.29). UTF-8(BOM 없음)로 저장.
+- 버전은 `build.gradle.kts`의 versionCode/versionName을 올린다 (현재 30 / 0.30). UTF-8(BOM 없음)로 저장.
 - 학교 PC 등 SDK 없는 곳: 브라우저 미리보기만. `serve.ps1` 실행 → `http://localhost:8791/ot-note.html` (병원판은 `?edition=hospital`).
 
 ## 친구 테스트 배포 (2026-10 결정: 병원판만 테스트)
@@ -79,7 +79,10 @@ git tag v0.23; git push origin v0.23
 
 ## AI 비용 원칙 ("수지타산")
 
-- Opus 쓰지 않는다. `cheap`=Haiku 5.5(말한 내용 칸별 나누기·안내문), `write`=Sonnet 5.5 effort low(SOAP·기록·검토), `think`=Sonnet 5.5 effort medium(보고서 전문가 초안 `report_mode=draft`·중재 추천·슈퍼비전).
+- **AI 등급 두 개**(2026-10-30, `organizations.ai_tier`, 관리자가 기관 관리 › AI 사용 › AI 등급에서 바꿈. 서버는 `instGate`가 등급을 읽어 `planCtx`(AsyncLocalStorage)로 들고 다니고 `askJson`이 `MODELS[plan][tier]`로 모델·effort를 고른다):
+  - `basic` 기본(구독료 포함, 가성비): cheap=Haiku 5.5 · write=Sonnet 5.5 low · think=Sonnet 5.5 low.
+  - `pro` 프리미엄(추가 요금): cheap=Sonnet 5.5 low · write=Sonnet 5.5 medium · think=**Opus 5.5** medium(보고서 전문가 초안·코치 노트·케이스 상담). Opus는 프리미엄 기관에만 쓴다. Bedrock은 `BEDROCK_MODEL_PRO_THINK`(기본 Opus 5 서울).
+  - 마이그레이션 `server/migrations/20261030_org_ai_tier.sql`(컬럼·update 권한·감사 트리거). 요금 숫자는 앱에 넣지 않는다("계약서 기준").
 - AI의 가치: 최소 정보로 전문가 수준 보고서, 질 높은 중재 추천. 입력에 없는 사실은 지어내지 않고 "[확인 필요: …]", 추론은 "(제안)".
 - 음성 받아쓰기: `gpt-4o-mini-transcribe` + 임상 약어 힌트, 실패 시 `whisper-1`.
 - edge function 배포 방법(2026-10-28부터): 파일이 커서(65KB) 통째로 붙여 넣으면 출력 한도에 걸린다 → 저장소에 푸시한 뒤, 배포하는 index.ts는 **한 줄 shim** `import "https://raw.githubusercontent.com/otdasol/rehab-note/<커밋 SHA>/server/functions/ai/index.ts";` 로 한다(Supabase가 배포 때 묶어 두므로 실행 중 GitHub에 의존하지 않는다). 순서: ① `ai-next`에 먼저 배포 → ② Actions `ai-smoke`(`gh api ... workflows/ai-smoke.yml/dispatches -f 'inputs[fn]=ai-next' -f 'inputs[kind]=chart'`, 결과는 check-run annotation) → ③ 200이면 같은 shim을 `ai`에 배포. 새 kind를 추가하면 `ai_usage.kind` CHECK 제약도 마이그레이션으로 넓혀야 한다(안 하면 502 upstream, 로그엔 "chart Error"). 배포가 '운영 배포'로 막히면 사용자가 "배포 허용"이라고 해야 한다. `ai-next`는 시험용 함수로 남아 있다(지우는 도구 없음).
@@ -154,6 +157,12 @@ git tag v0.23; git push origin v0.23
 - 같은 날 더 넣은 것: PT `JOINT_SETS`(진단별 MMT·ROM 세트, 쪽 고른 뒤 한 번에) + ROM은 `AROM`/`PROM` 접두(`j.kind`, 이름 "PROM 무릎 굴곡 (Rt)"); 아동 활동 `a.ok/try/prompt/level/tags`(정반응 카운터·촉구·난이도·직무별 꼬리표 `ACT_TAGS`) + `l.parentNote`(보호자 안내) → `actLine`; OT `adlCard`(`l.adl` 항목별 보조 수준, `ADL_LEVELS_ITEMS`) → "- ADL: …" 줄, K-MBI 참고에도; 미술 작품 사진 `a.photos`(IndexedDB `photo:<id>` 키에만, `photoGc`로 정리, 기록·AI·PC·복사 제외); 기관 관리 "이번 달 AI 사용"(audit_log `ai.use` 집계); 가입 비밀번호 10자+영문+숫자; `showOb`가 dialog를 먼저 열고 그리도록(기관 연결 화면 빈 상자 버그).
 - 밤에 더 넣은 것: 새 직무 **SLPA 언어치료(병원·성인)** — `ROLE/FEES/LOG_ITEMS/CATALOGS/PHRASES/PB_DOMAINS/FOCUS`에 추가, 단서 수준 `SLPA_ASSIST`·반응 `SLPA_RESPONSE`·`assistWord()`, 연하 카드 공유(`showSwal`), 서버 v19에 `ROLE_RULES.SLPA`·MENTOR·OBS·아이디어 예시(배포 전엔 400 → "AI 서버가 아직 이 기능을 몰라요"). 안드로이드 **Vault**(`Vault.kt`, `OTNative.seal/open`, 저장 글 전체 `enc1:` AES-GCM 키스토어; 못 열면 `vaultFailed`로 저장 중단). 아동 활동 ⏱ 시간 재기(`actTimer`). 완성 카드에 "다음 환자 →".
 - 남은 큰 것(다음): 기관 종류(병원/센터) × 대상(성인/아동)의 완전 분리(지금은 SLPA 직무 추가로 병원 언어치료만 해결), 기록 시간 집계(폰 → 서버, 방침 갱신 필요), PC 받기함 QR.
+
+## 디자인: 영역 구분 (0.30, 2026-10-30)
+
+- 사용자 요청: "디자인적으로 매력 있게, 평가·보고서 등 영역이 잘 구분되게". `data-area` 속성으로 영역 색을 바꾼다(`--accent`/`--accent-soft`): 기록 `record` 청록 · 평가 `eval` 남색 · SOAP `soap` 바다색 · 보고서 `report` 보라 · 코치/확인 `coach` 호박색 · 완료 초록. `#sheet`는 `dataset.area = sheetTab`, 보고서 탭·`docCard`(`.report-card`, 단계 번호 `.step`)·확인 탭·정리 탭은 섹션에 `data-area`.
+- 각 영역 머리(`.area-head`: 아이콘 타일 + 영어 eyebrow + 제목 + 한 줄 설명), 세션 탭(`.seg.areas`)은 영역 색으로 켜지고 아이콘(`i-edit`·`i-ruler`·`i-doc`·`i-report`·`i-coach`)이 붙는다. 아래 탭바도 영역 색. 영역 안 칩·포커스·primary 버튼은 영역 색을 따르되 **환자 정보 카드·기록 완료 버튼은 늘 청록**.
+- 코치 노트·케이스 상담 카드는 호박색 그라데이션, 완성 카드는 초록, 보고서 카드는 보라 그라데이션. 홈 슬롯 카드는 왼쪽 4px 띠로 상태(작성 중 청록·완료 초록·확인 호박·녹음 빨강).
 
 ## 보고서 기능 (핵심)
 

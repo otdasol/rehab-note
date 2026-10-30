@@ -20,6 +20,13 @@
     --teal: #12857F; --teal-soft: #E2F6F3;
     --warn: #C2660A; --warn-soft: #FFF2DE; --ok: #0A8754; --ok-soft: #E1F5EB; --rec: #E5484D; --rec-soft: #FFE9EA;
     --hero: #0B5D63; --hero-2: #1C9C93;
+    /* 영역별 색: 기록(청록) · 평가(남색) · SOAP(바다색) · 보고서(보라) · 코치/AI(호박색) · 완료(초록). 화면마다 "지금 어느 영역인지" 색으로 알 수 있게 */
+    --rec-area: #0E7C7B; --rec-area-soft: #E2F3F1;
+    --eval: #3F5BD9; --eval-soft: #E9EDFB; --eval-ink: #2A3FA6;
+    --soap: #0B6E99; --soap-soft: #E3F1F8;
+    --report: #7A3FB5; --report-soft: #F2EAFA; --report-ink: #5E2E8E;
+    --coach: #B8730A; --coach-soft: #FFF4DD;
+    --accent: var(--primary); --accent-soft: var(--primary-soft);
     --shadow: 0 1px 2px rgba(21,40,44,.04), 0 8px 24px rgba(21,40,44,.06);
     --radius: 20px;
   }
@@ -367,6 +374,67 @@
   .splash-start { position: absolute; left: 14.66%; width: 70.69%; top: 91.53%; height: 7.07%; border-radius: 999px; }
   .splash-start:active { background: rgba(255,255,255,.18); }
   [hidden] { display: none !important; }
+
+  /* ---------- 영역 구분 (data-area) ---------- */
+  [data-area="record"] { --accent: var(--rec-area); --accent-soft: var(--rec-area-soft); }
+  [data-area="eval"] { --accent: var(--eval); --accent-soft: var(--eval-soft); }
+  [data-area="soap"] { --accent: var(--soap); --accent-soft: var(--soap-soft); }
+  [data-area="report"] { --accent: var(--report); --accent-soft: var(--report-soft); }
+  [data-area="coach"] { --accent: var(--coach); --accent-soft: var(--coach-soft); }
+  .area-head { display: flex; align-items: center; gap: 10px; margin: 2px 0 10px; }
+  .area-head .area-ico { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: #fff; flex: none; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 28%, transparent); }
+  .area-head .area-ico .icon { width: 20px; height: 20px; }
+  .area-head b { font-size: 18px; letter-spacing: -0.03em; }
+  .area-head .eyebrow { display: block; font-size: 11px; font-weight: 800; letter-spacing: .08em; color: var(--accent); text-transform: uppercase; }
+  .area-head .sub { font-size: 12.5px; color: var(--muted); }
+  /* 세션 탭: 영역 색으로 켜진다 */
+  .seg.areas button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .seg.areas button .icon { width: 16px; height: 16px; }
+  .seg.areas button[data-tab2="record"].on { background: var(--rec-area); color: #fff; }
+  .seg.areas button[data-tab2="eval"].on { background: var(--eval); color: #fff; }
+  .seg.areas button[data-tab2="soap"].on { background: var(--soap); color: #fff; }
+  .seg.areas button.on { box-shadow: 0 4px 12px rgba(21,40,44,.12); }
+  /* 영역 안에서는 칩·입력 포커스·핀 색이 영역 색을 따른다 */
+  [data-area] .chip.on { background: var(--accent); color: #fff; }
+  [data-area] input:focus, [data-area] textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  [data-area] .btn.primary { background: var(--accent); }
+  [data-area] .pill.info { background: var(--accent-soft); color: var(--accent); }
+  [data-area="eval"] .tool-box { border-left: 3px solid var(--eval-soft); padding-left: 10px; }
+  [data-area="eval"] .calc-line { color: var(--eval-ink); }
+  [data-area="eval"] .cat-tabs .chip.on { background: var(--eval); }
+  [data-area="soap"] .soap-badge { background: var(--soap); color: #fff; }
+  [data-area="report"] .rp-parts .chip.on { background: var(--report); }
+  [data-area] .info-card .chip.on, [data-area] .sticky-bar .btn.primary { background: var(--primary); }
+  [data-area] .info-card input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-soft); }
+  .sheet-strip { height: 4px; border-radius: 99px; background: var(--accent); margin: 0 0 10px; opacity: .9; }
+  /* 코치 노트: 따뜻한 호박색 카드 */
+  .coach-card { background: linear-gradient(180deg, #FFF9EC, #FFFFFF 70%); border-color: #F3DFB5; }
+  .coach-card summary b { color: var(--coach); }
+  .coach-card .btn.primary { background: var(--coach); }
+  .coach-card .chip.on { background: var(--coach); }
+  .sv-card { background: linear-gradient(180deg, #FFF9EC, #FFFFFF 70%); border-color: #F3DFB5; }
+  .sv-card summary b { color: var(--coach); }
+  /* 완료 카드 */
+  .done-card { border-color: #BFE3D1; background: linear-gradient(180deg, #EAF8F0, #FFFFFF 80%); }
+  /* 보고서 영역 카드 */
+  .report-card { border-color: #E3D6F1; background: linear-gradient(180deg, #F8F3FD, #FFFFFF 60%); }
+  .report-card .step { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--report); color: #fff; font-size: 12px; font-weight: 800; margin-right: 6px; }
+  /* 아래 탭: 영역 색으로 켜진다 */
+  .tab[data-tab="today"].on { color: var(--rec-area); } .tab[data-tab="report"].on { color: var(--report); } .tab[data-tab="inbox"].on { color: var(--coach); } .tab[data-tab="notes"].on { color: var(--soap); }
+  .tab.on::after { content: ""; width: 18px; height: 3px; border-radius: 99px; background: currentColor; margin-top: 1px; }
+  /* 홈 */
+  .slot-card .avatar { border-radius: 14px; }
+  .slot-card { border-left-width: 4px; }
+  .slot-card.st-final { border-left-color: var(--ok); } .slot-card.st-final .avatar { background: var(--ok-soft); color: var(--ok); }
+  .slot-card.st-writing, .slot-card.st-draft { border-left-color: var(--primary); }
+  .slot-card.st-questions { border-left-color: var(--coach); } .slot-card.st-questions .avatar { background: var(--coach-soft); color: var(--coach); }
+  .slot-card.st-busy { border-left-color: var(--soap); } .slot-card.st-recording { border-left-color: var(--rec); }
+  .slot-card.empty { border-left-width: 1px; }
+  .greet-face { box-shadow: 0 0 0 1px var(--line), 0 6px 16px rgba(14,124,123,.18); }
+  .headline .greet h1 { background: linear-gradient(135deg, #FFFFFF, #F2FAF9); }
+  .slot-card.now { background: linear-gradient(90deg, var(--primary-soft), #fff 60%); }
+  .btn.primary { background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 80%, #1C9C93)); }
+  .card { box-shadow: 0 1px 2px rgba(21,40,44,.03); }
 </style>
 </head>
 <body>
@@ -375,6 +443,10 @@
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
   <symbol id="i-q" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5M12 16h.01"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21H3Z"/><path d="m7 13 2 2"/><path d="m10 10 2 2"/><path d="m13 7 2 2"/></symbol>
+  <symbol id="i-report" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+  <symbol id="i-coach" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-5.5"/><path d="M22 8v6"/></symbol>
   <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
@@ -429,18 +501,18 @@
     <div id="slots"></div>
   </section>
 
-  <section id="view-report" hidden>
-    <div class="section-title">입원·중간·퇴원 보고서</div>
+  <section id="view-report" hidden data-area="report">
+    <div class="area-head" style="margin-top:14px"><div class="area-ico"><svg class="icon"><use href="#i-report"/></svg></div><div class="spacer"><span class="eyebrow">Report</span><b id="reportTitle">입원·중간·퇴원 보고서</b><div class="sub">평가 탭 점수가 날짜와 함께 자동으로 들어가요</div></div></div>
     <div id="reportList"></div>
   </section>
 
-  <section id="view-inbox" hidden>
-    <div class="section-title">확인할 것<span class="spacer"></span><span class="muted small" id="inboxCount"></span></div>
-    <p class="muted small" style="margin-top:-4px">AI가 기록을 정리하다 애매했던 부분이에요. 탭해서 답하면 한 번에 마무리돼요.</p>
+  <section id="view-inbox" hidden data-area="coach">
+    <div class="area-head" style="margin-top:14px"><div class="area-ico"><svg class="icon"><use href="#i-q"/></svg></div><div class="spacer"><span class="eyebrow">Check</span><b>확인할 것 <span class="muted small" id="inboxCount"></span></b><div class="sub">AI가 정리하다 애매했던 부분 · 탭해서 답하면 마무리돼요</div></div></div>
     <div id="inbox"></div>
   </section>
 
-  <section id="view-notes" hidden>
+  <section id="view-notes" hidden data-area="soap">
+    <div class="area-head" style="margin-top:14px"><div class="area-ico"><svg class="icon"><use href="#i-doc"/></svg></div><div class="spacer"><span class="eyebrow">Summary</span><b>정리</b><div class="sub">오늘 기록을 한 장으로 · 월 실적</div></div></div>
     <div class="seg" id="notesSeg" style="margin-top:0"><button data-nm="day" class="on">오늘 기록</button><button data-nm="month">월 실적</button></div>
     <div id="notesMonth" hidden></div>
     <div id="notesDay">
@@ -1879,7 +1951,7 @@ function renderToday() {
     const isNow = isToday && s.id === currentSlot()?.id;
     html += `<div class="slot">
       <div class="slot-time">${esc(s.time)}</div>
-      <div class="slot-card ${s.status === "empty" && !s.label ? "empty" : ""} ${s.status === "absent" ? "absent" : ""} ${isNow ? "now" : ""}" data-open="${s.id}">
+      <div class="slot-card st-${s.status} ${s.status === "empty" && !s.label ? "empty" : ""} ${s.status === "absent" ? "absent" : ""} ${isNow ? "now" : ""}" data-open="${s.id}">
         <div class="avatar">${esc(s.label?.slice(0, 2) || "+")}</div>
         <div class="slot-main"><div class="slot-name">${esc(slotName(s))}${pname(s)}${s.alias ? ` <span class="alias">${esc(s.alias)}</span>` : ""}${s.kind && s.kind !== "정규" ? ` <span class="pill teal" style="padding:2px 7px">${s.kind}</span>` : ""}${s.role && s.role !== role() && ROLE[s.role] ? ` <span class="pill" style="padding:2px 7px">${esc(ROLE[s.role].short)}</span>` : ""}${s.status !== "absent" && sameTime(s) > 1 ? ` <span class="pill info" style="padding:2px 7px">같은 시간 ${sameTime(s)}명</span>` : ""}${!s.finalized && isDue(patientOf(s)) ? ' <span class="pill warn" style="padding:2px 7px">재평가</span>' : ""}${studentOn() && s.review ? ` <span class="pill ${REVIEW[s.review.status][1]}" style="padding:2px 7px">${REVIEW[s.review.status][0]}</span>` : ""}</div><div class="slot-sub">${esc(slotSub(s))}</div></div>
         ${label && !["empty", "final"].includes(s.status) ? `<span class="pill ${cls}">${s.status === "recording" ? '<span class="dot"></span>' : s.status === "busy" ? '<span class="spin" style="width:12px;height:12px;border-width:2px"></span>' : ""}${label}${q ? ` ${q}` : ""}</span>` : ""}
@@ -2561,7 +2633,9 @@ function renderSheetInner() {
   const used = activePatients().map((x) => x.label).filter(Boolean);
   const labels = [...new Set([...used.sort((a, b) => a.length - b.length || a.localeCompare(b)), ...freeLabels(4)])];
   const p = patientOf(s);
-  const tabs = [["record", "치료기록"], ["eval", `평가${s.tools.length ? ` ${s.tools.length}` : ""}`], ["soap", "SOAP"]];
+  const tabs = [["record", "치료기록", "edit"], ["eval", `평가${s.tools.length ? ` ${s.tools.length}` : ""}`, "ruler"], ["soap", "SOAP", "doc"]];
+  const AREA_HEAD = { record: ["Record", "치료기록", "오늘 한 치료를 눌러 고르면 글이 돼요"], eval: ["Assessment", "평가", "평가한 날만 · 도구 이름과 점수"], soap: ["SOAP note", "SOAP", "평가한 날 완료하면 저절로 채워져요"] };
+  $("#sheet").dataset.area = sheetTab;
   $("#sheet").innerHTML = `
     <div class="full-head"><div class="wrap row">
       <button class="icon-btn" data-x="close" aria-label="뒤로">${icon("back")}</button>
@@ -2599,7 +2673,8 @@ function renderSheetInner() {
       </details>
       ${s.precaution && !infoOpen ? `<p class="small" style="margin:8px 2px 0;color:var(--warn);font-weight:700">⚠ 주의: ${esc(s.precaution)}</p>` : ""}
       ${p ? `<button class="btn block" data-x="card" style="margin-top:10px">${isDue(p) ? '<span class="pill warn">재평가 시기</span>' : ""}${who()} 카드 · 목표 · 평가 차트${isCenter() ? " · 보고서" : ""}</button>` : ""}
-      <div class="seg">${tabs.map(([k, v]) => `<button class="${sheetTab === k ? "on" : ""}" data-tab2="${k}">${v}</button>`).join("")}</div>
+      <div class="seg areas">${tabs.map(([k, v, ic]) => `<button class="${sheetTab === k ? "on" : ""}" data-tab2="${k}">${icon(ic, 16)}${v}</button>`).join("")}</div>
+      <div class="area-head"><div class="area-ico">${icon(tabs.find((t) => t[0] === sheetTab)[2], 20)}</div><div class="spacer"><span class="eyebrow">${AREA_HEAD[sheetTab][0]}</span><b>${AREA_HEAD[sheetTab][1]}</b><div class="sub">${AREA_HEAD[sheetTab][2]}</div></div></div>
       ${body}
       ${completeBar(s, isBusy)}
     </div>`;
@@ -3745,7 +3820,7 @@ function rpWriter(p, t, micOn) {
   const [k, title, mode] = parts.find(([x]) => x === rpPart); const target = `rp|${p.id}|${t}|${k}`;
   const lt = listenTarget?.pid === p.id ? listenTarget.part : null;
   return `${rpVoiceBox(p, t, lt === "__dict" || (rpRec?.pid === p.id && !rpRec.busy))}
-    <div class="small muted" style="margin-top:14px">③ 선생님이 쓰는 칸 · 단어를 누르면 문장이 쌓여요</div>
+    <div class="small muted" style="margin-top:14px"><span class="step">3</span>선생님이 쓰는 칸 · 단어를 누르면 문장이 쌓여요</div>
     <div class="rp-parts">${parts.map(([x, tt]) => `<button class="chip ${x === rpPart ? "on" : ""}" data-rppart="${x}">${n[x]?.trim() ? "✓ " : ""}${tt}</button>`).join("")}</div>
     <div class="row" style="margin-top:8px"><b class="spacer">${title}</b></div>
     <textarea data-pbta="${esc(target)}" data-rpk="${k}" rows="4" maxlength="4000" placeholder="아래 단어를 누르거나 직접 적어 주세요" style="margin-top:6px">${esc(n[k] || "")}</textarea>
@@ -3758,13 +3833,13 @@ function docCard(p) {
     중간: "예: 그동안 달라진 점, 남은 문제, 목표 수정, 향후 계획",
     종결: isCenter() ? "예: 종결 사유, 가정에서 이어 갈 활동, 기관에 전할 점" : "예: 퇴원 후 계획(자택·요양·외래), 가정 프로그램, 보조도구" }[t];
   const ch = chartsOf(p)[t];
-  return `<div class="card" id="chartCard"><b>${isCenter() ? "초기·중간·종결 보고서" : "입원·중간·퇴원 보고서"}</b>
+  return `<div class="card report-card" id="chartCard" data-area="report"><div class="row"><div class="area-ico" style="width:30px;height:30px;border-radius:9px;background:var(--report);color:#fff;display:grid;place-items:center;flex:none">${icon("report", 16)}</div><b>${isCenter() ? "초기·중간·종결 보고서" : "입원·중간·퇴원 보고서"}</b></div>
     <div class="seg" style="margin:10px 0 10px">${CHARTS.map((k) => `<button class="${t === k ? "on" : ""}" data-chart="${k}">${p.reportDone?.[k] || chartsOf(p)[k] ? "✓ " : ""}${REPORT_WORD()[k]}</button>`).join("")}</div>
-    <div class="small muted">① 기준 평가 고르기 · 평가 탭에 넣은 점수가 날짜와 함께 들어가요</div>
+    <div class="small muted"><span class="step">1</span>기준 평가 고르기 · 평가 탭에 넣은 점수가 날짜와 함께 들어가요</div>
     ${!ev.length ? `<p class="small" style="margin:8px 0 0;color:var(--warn);font-weight:700">아직 평가 점수가 없어요. 세션의 평가 탭에 넣으면 여기서 고를 수 있어요.</p>`
       : t === "초기" ? evalPicker(p, t, "cur", "이 보고서의 평가")
       : evalPicker(p, t, "base", "비교 기준 (처음 평가)") + evalPicker(p, t, "cur", t === "종결" ? `이번 평가 (${endWord()} 전)` : "이번 평가 (재평가)")}
-    <div class="small muted" style="margin-top:12px">② 자동으로 채운 내용</div>
+    <div class="small muted" style="margin-top:12px"><span class="step">2</span>자동으로 채운 내용</div>
     <pre class="rp-auto">${esc(reportAuto(p, t))}</pre>
     ${rpWriter(p, t, micOn)}
     <button class="btn primary block" data-c="rpCopy" style="margin-top:10px">${icon("copy", 16)}보고서 복사</button>
@@ -3805,7 +3880,7 @@ function renderCard() {
       ${superviseCard(p)}
       ${docCard(p)}
 
-      <div class="card"><b>평가 점수 변화</b>
+      <div class="card" data-area="eval"><div class="row"><span class="pill info" style="font-weight:800">평가</span><b>평가 점수 변화</b></div>
         ${trends.length ? trends.map(([n, t]) => `<div class="trend"><div class="spacer"><div style="font-weight:700">${esc(n)}</div>
           <div class="muted small">${t.points.map((x) => `${esc(x.v)}<span style="opacity:.6">(${md(x.day)})</span>`).join(" → ")}${t.max ? ` / ${t.max}` : esc(t.unit || "")}</div>${judgeHtml(mcidJudge(p, n))}</div>${sparkline(t.points, t.max)}</div>`).join("")
           + (trends.some(([n]) => mcidOf(n)) ? `<p class="muted small" style="margin:8px 0 0">기준값은 연구마다 다르고 주로 뇌졸중 연구 값이에요(통증·척추는 근골격계). 판단을 돕는 참고로 써 주세요.</p>` : "")
@@ -4062,7 +4137,7 @@ async function sbLogout() { const t = inst()?.session?.access; if (t) await sbFe
 async function loadOrg(orgId) {
   const me = inst().session.uid;
   const [m] = await sbUser(`/rest/v1/org_members?org_id=eq.${orgId}&user_id=eq.${me}&select=role,active`);
-  const [o] = await sbUser(`/rest/v1/organizations?id=eq.${orgId}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days,show_names`);
+  const [o] = await sbUser(`/rest/v1/organizations?id=eq.${orgId}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days,show_names,ai_tier`);
   return m?.active && o ? { ...o, role: m.role } : null;
 }
 async function enterOrg(orgId) {
@@ -4099,7 +4174,7 @@ function instCheck(force) {
       const [m] = await sbUser(`/rest/v1/org_members?org_id=eq.${i.org.id}&user_id=eq.${me}&select=role,active`);
       const [dv] = i.deviceRow ? await sbUser(`/rest/v1/devices?id=eq.${i.deviceRow}&select=revoked_at`) : [null];
       if (!m?.active || (i.deviceRow && (!dv || dv.revoked_at))) { wipeInst("기관에서 해지되어 이 폰의 기관 기록을 지웠어요"); return; }
-      const [o] = await sbUser(`/rest/v1/organizations?id=eq.${i.org.id}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days,show_names`);
+      const [o] = await sbUser(`/rest/v1/organizations?id=eq.${i.org.id}&select=id,name,kind,ai_basis,ai_enabled,patient_retention_days,show_names,ai_tier`);
       if (o) i.org = { ...o, role: m.role };
       if (i.deviceRow) await sbUser(`/rest/v1/devices?id=eq.${i.deviceRow}`, { method: "PATCH", body: { last_seen_at: new Date().toISOString() }, prefer: "return=minimal" });
       for (const p of db.patients) if (p.refSync) syncRef(p); // 오프라인 때 못 보낸 퇴원·재입원
@@ -4363,6 +4438,7 @@ function logDetail(x) {
   if (d.kind) parts.push(AI_KIND_KO[d.kind] || d.kind);
   if ("ai_enabled" in d) parts.push(`AI ${d.ai_enabled ? "켬" : "끔"}`);
   if ("show_names" in d) parts.push(`이름 표시 ${d.show_names ? "허용" : "끔"}`);
+  if ("ai_tier" in d) parts.push(`AI 등급 ${d.ai_tier === "pro" ? "프리미엄" : "기본"}`);
   if (d.ai_basis) parts.push(d.ai_basis === "notice" ? "근거: 기관 고지" : "근거: 환자별 동의");
   if (d.role) parts.push(ROLE_KO[d.role] || d.role);
   if (x.action === "invite.create" && x.target_id) parts.push(ROLE_KO[x.target_id] || x.target_id);
@@ -4413,6 +4489,11 @@ function renderAdmin() {
         <div class="seg" style="margin:6px 0 6px">${[["per_patient_consent", "환자별 동의"], ["notice", "기관 고지"]].map(([k, v]) => `<button class="${o.ai_basis === k ? "on" : ""}" data-basis="${k}">${v}</button>`).join("")}</div>
         <p class="muted small" style="margin:6px 0 0">${o.ai_basis === "per_patient_consent" ? "동의 기록이 있는 환자에게만 AI를 써요 (권장)."
           : `<b style="color:var(--warn)">기관 고지만으로 AI를 쓰려면 국외 이전 고지·위탁 계약 등 법적 근거를 기관이 먼저 갖춰야 해요.</b> 법률 검토 뒤에 쓰세요.`}</p>
+        <div class="small muted" style="margin-top:12px">AI 등급</div>
+        <div class="seg" style="margin:6px 0 6px">${[["basic", "기본 · 구독 포함"], ["pro", "프리미엄 · 추가 요금"]].map(([k, v]) => `<button class="${(o.ai_tier || "basic") === k ? "on" : ""}" data-tier="${k}">${v}</button>`).join("")}</div>
+        <p class="muted small" style="margin:6px 0 0">${(o.ai_tier || "basic") === "pro"
+          ? `<b style="color:var(--coach)">프리미엄</b>: 보고서 전문가 초안·코치 노트·케이스 상담을 <b>최고급 모델</b>이 쓰고, 매 회기 기록도 더 꼼꼼히 다듬어요. 치료사 수에 따라 추가 요금(계약서 기준).`
+          : `<b>기본</b>: 가성비 모델로 매 회기 기록·SOAP·보고서를 만들어요(구독료에 포함). 보고서 초안과 코치 노트를 더 깊게 받고 싶으면 프리미엄으로 바꾸세요.`}</p>
       </div>
       <div class="card"><b>구성원</b> ${d?.members ? `<span class="muted small">${d.members.filter((m) => m.active).length}명</span>` : ""}
         ${!d ? `<p class="muted small"><span class="spin"></span>불러오는 중…</p>` : d.error ? `<p class="small" style="color:var(--warn)">${esc(d.error)}</p>`
@@ -4448,8 +4529,8 @@ $("#dlgAdmin").addEventListener("click", async (e) => {
       const multi = adminRole === "therapist" && adminMulti;
       adminInvite = { code: await rpc("create_invite", { p_org: o.id, p_role: adminRole, p_max_uses: multi ? 20 : 1, p_days: multi ? 30 : 7 }), role: adminRole, multi }; await loadAdmin();
     }
-    if (b.dataset.aion || b.dataset.basis || b.dataset.names) {
-      const patch = b.dataset.aion ? { ai_enabled: b.dataset.aion === "on" } : b.dataset.names ? { show_names: b.dataset.names === "on" } : { ai_basis: b.dataset.basis };
+    if (b.dataset.aion || b.dataset.basis || b.dataset.names || b.dataset.tier) {
+      const patch = b.dataset.aion ? { ai_enabled: b.dataset.aion === "on" } : b.dataset.names ? { show_names: b.dataset.names === "on" } : b.dataset.tier ? { ai_tier: b.dataset.tier } : { ai_basis: b.dataset.basis };
       if (!Object.entries(patch).every(([k, v]) => o[k] === v)) {
         const [row] = await sbUser(`/rest/v1/organizations?id=eq.${o.id}`, { method: "PATCH", body: patch, prefer: "return=representation" });
         if (!row) throw new Error("권한이 없어요");
@@ -5290,7 +5371,7 @@ function paintAdmin() {
     <button class="btn ghost block" data-adm="logout" style="height:36px;margin-top:8px;font-size:14px">로그아웃</button>`;
   else h = `${head(ROLE_KO[o.role] || "관리자", "on")}
     <p><b>${esc(o.name)}</b><br><span class="hint">${esc(s.email)}</span></p>
-    <p class="hint">AI ${o.ai_enabled ? `<b style="color:var(--ok)">켜짐</b>` : `<b style="color:var(--warn)">꺼짐</b>`} · 이름 표시 ${o.show_names ? `<b style="color:var(--ok)">허용</b>` : "꺼짐"}</p>
+    <p class="hint">AI ${o.ai_enabled ? `<b style="color:var(--ok)">켜짐</b>${o.ai_tier === "pro" ? ' · <b style="color:var(--coach)">프리미엄</b>' : " · 기본"}` : `<b style="color:var(--warn)">꺼짐</b>`} · 이름 표시 ${o.show_names ? `<b style="color:var(--ok)">허용</b>` : "꺼짐"}</p>
     <button class="btn primary block" data-adm="open">기관 관리 열기 (초대 코드 · AI · 이름 표시 · 구성원)</button>
     <button class="btn ghost block" data-adm="logout" style="height:36px;margin-top:8px;font-size:14px">로그아웃</button>`;
   $("#adminBox").innerHTML = h;

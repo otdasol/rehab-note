@@ -5,6 +5,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Anthropic from "npm:@anthropic-ai/sdk@1.1.0";
 import { AnthropicBedrock } from "npm:@anthropic-ai/bedrock-sdk@1.1.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 // ---------- AI 처리 위치 ----------
 // AI_PROVIDER=bedrock 이면 같은 Claude 모델을 AWS Bedrock 서울 리전(ap-northeast-2)에서 돌린다 → 글이 국내를 벗어나지 않는다.
@@ -43,9 +44,9 @@ async function take(device: string, kind: Kind) {
 // 기관판 앱은 로그인 토큰·기관·환자 토큰을 함께 보낸다. 활성 구성원인지, 기관 AI가 켜져 있는지,
 // 환자별 동의가 필요한 기관이면 AI 처리 동의가 있는지 서버에서 다시 확인한다. 개인판 요청(토큰 없음)은 그대로 둔다.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-async function instGate(req: Request, kind: Kind) {
+async function instGate(req: Request, kind: Kind): Promise<Response | Plan> {
   const token = req.headers.get("x-inst-token");
-  if (!token) return null;
+  if (!token) return "basic";
   const org = req.headers.get("x-org-id") || "";
   const ref = req.headers.get("x-patient-ref") || null;
   if (!UUID.test(org) || (ref && !UUID.test(ref))) return json(400, { error: "inst" });
@@ -53,7 +54,9 @@ async function instGate(req: Request, kind: Kind) {
   if (error || !u?.user) return json(401, { error: "session" });
   const { data, error: e2 } = await db.rpc("ai_check", { p_user: u.user.id, p_org: org, p_ref: ref, p_kind: kind });
   if (e2) throw new Error("ai_check");
-  return data === "ok" ? null : json(403, { error: data });
+  if (data !== "ok") return json(403, { error: data });
+  const { data: o } = await db.from("organizations").select("ai_tier").eq("id", org).maybeSingle();
+  return o?.ai_tier === "pro" ? "pro" : "basic";
 }
 
 // ---------- SOAP 초안 ----------
@@ -203,10 +206,20 @@ const RECORD_SCHEMA = {
 };
 
 // 비용 등급. 비용이 맞아야 계속 운영할 수 있어 Opus는 쓰지 않는다.
-// - cheap: 말한 내용 나누기·환자용 안내문처럼 단순 정리 → Haiku 5.5 ($0.10/$0.50 per MTok)
-// - write: 매 회기 기록·SOAP처럼 정해진 형식으로 옮겨 쓰기 → Sonnet 5.5, effort low ($2/$10)
-// - think: 보고서 전문가 초안·중재 추천·슈퍼비전처럼 임상 추론이 필요한 것 → Sonnet 5.5, effort medium
+// - cheap: 말한 내용 나누기·환자용 안내문처럼 단순 정리
+// - write: 매 회기 기록·SOAP처럼 정해진 형식으로 옮겨 쓰기
+// - think: 보고서 전문가 초안·중재 추천·슈퍼비전처럼 임상 추론이 필요한 것 (모델은 아래 MODELS 표, 기관 등급별)
 type Tier = "cheap" | "write" | "think";
+// AI 등급(기관 설정 organizations.ai_tier). basic = 구독료에 포함되는 가성비 구성, pro = 추가 요금을 내는 기관에만 최고급 모델.
+// - basic: cheap Haiku 5.5 · write Sonnet 5.5 low · think Sonnet 5.5 low
+// - pro:   cheap Sonnet 5.5 low · write Sonnet 5.5 medium · think Opus 5.5 medium (보고서 전문가 초안·코치 노트·케이스 상담)
+type Plan = "basic" | "pro";
+const MODELS: Record<Plan, Record<Tier, [string, "low" | "medium"]>> = {
+  basic: { cheap: ["claude-haiku-5-5", "low"], write: ["claude-sonnet-5-5", "low"], think: ["claude-sonnet-5-5", "low"] },
+  pro: { cheap: ["claude-sonnet-5-5", "low"], write: ["claude-sonnet-5-5", "medium"], think: ["claude-opus-5-5", "medium"] },
+};
+const planCtx = new AsyncLocalStorage<Plan>(); // 요청마다 등급을 들고 다닌다 (askJson이 읽는다)
+const planOf = (): Plan => planCtx.getStore() || "basic";
 // Bedrock 경로: 구조화 출력(output_config)·effort 대신 도구 호출을 강제해 같은 JSON 스키마로 받는다.
 async function askJsonBedrock(system: string, schema: unknown, text: string, tier: Tier) {
   const ak = Deno.env.get("AWS_ACCESS_KEY_ID"), sk = Deno.env.get("AWS_SECRET_ACCESS_KEY");
@@ -214,7 +227,7 @@ async function askJsonBedrock(system: string, schema: unknown, text: string, tie
   if (text.length > MAX_TEXT) return json(413, { error: "too_long" });
   const client = new AnthropicBedrock({ awsAccessKey: ak, awsSecretKey: sk, awsRegion: BEDROCK_REGION });
   const res = await client.messages.create({
-    model: BEDROCK_MODEL[tier],
+    model: planOf() === "pro" && tier === "think" ? (Deno.env.get("BEDROCK_MODEL_PRO_THINK") || "anthropic.claude-opus-5-v1:0") : BEDROCK_MODEL[tier],
     max_tokens: 16000,
     system,
     tools: [{ name: "out", description: "정리한 결과를 이 형식으로 돌려줍니다.", input_schema: schema as Anthropic.Tool["input_schema"] }],
@@ -232,10 +245,11 @@ async function askJson(system: string, schema: unknown, text: string, tier: Tier
   if (!key) return json(503, { error: "not_configured" });
   if (text.length > MAX_TEXT) return json(413, { error: "too_long" });
   const client = new Anthropic({ apiKey: key });
+  const [model, effort] = MODELS[planOf()][tier];
   const res = await client.beta.messages.create({
-    model: tier === "cheap" ? "claude-haiku-5-5" : "claude-sonnet-5-5",
+    model,
     max_tokens: 16000,
-    output_config: { effort: tier === "think" ? "medium" : "low", format: { type: "json_schema", schema } },
+    output_config: { effort, format: { type: "json_schema", schema } },
     system,
     messages: [{ role: "user", content: text }],
   } as Anthropic.Beta.Messages.MessageCreateParamsNonStreaming);
@@ -741,17 +755,19 @@ Deno.serve(async (req) => {
   const last = new URL(req.url).pathname.split("/").pop() as Kind;
   const kind: Kind = last in LIMITS ? last : "soap";
   try {
-    const blocked = await instGate(req, kind);
-    if (blocked) return blocked;
+    const gate = await instGate(req, kind);
+    if (gate instanceof Response) return gate;
     if (!(await take(device, kind))) return json(429, { error: "daily_limit", limit: LIMITS[kind] });
-    if (kind === "stt") return await stt(req);
-    if (kind === "record") return await record(req);
-    if (kind === "ideas") return await ideas(req);
-    if (kind === "summary") return await summary(req);
-    if (kind === "review") return await review(req);
-    if (kind === "report") return await report(req);
-    if (kind === "chart") return await chartOcr(req);
-    return await soap(req);
+    return await planCtx.run(gate, async () => {
+      if (kind === "stt") return await stt(req);
+      if (kind === "record") return await record(req);
+      if (kind === "ideas") return await ideas(req);
+      if (kind === "summary") return await summary(req);
+      if (kind === "review") return await review(req);
+      if (kind === "report") return await report(req);
+      if (kind === "chart") return await chartOcr(req);
+      return await soap(req);
+    });
   } catch (e) {
     // 내용은 남기지 않고 오류 종류만 기록한다
     console.error(kind, e instanceof Anthropic.APIError ? `anthropic ${e.status}` : (e as Error).name);
